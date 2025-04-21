@@ -4,6 +4,7 @@ mod parser;
 mod token;
 
 use anyhow::Result;
+use ariadne::{Report, ReportKind};
 use clap::Parser;
 use inkwell::context::Context;
 use std::{fs, path::PathBuf};
@@ -32,8 +33,27 @@ fn main() -> Result<()> {
     let input = fs::read_to_string(&args.input)?;
 
     // Parse the input
-    let program = parser::parse(&input).unwrap();
-    println!("Parsed AST: {:#?}", program);
+    let program = match parser::parse(&input).into_result() {
+        Ok(program) => program,
+        Err(errors) => {
+            for err in errors {
+                Report::build(ReportKind::Error, ((), err.span().into_range()))
+                    .with_config(ariadne::Config::new().with_index_type(ariadne::IndexType::Byte))
+                    .with_code(3)
+                    .with_message(err.to_string())
+                    .with_label(
+                        ariadne::Label::new(((), err.span().into_range()))
+                            .with_message(err.reason().to_string())
+                            .with_color(ariadne::Color::Red),
+                    )
+                    .finish()
+                    .eprint(ariadne::Source::from(&input))
+                    .unwrap();
+            }
+            return Err(anyhow::anyhow!("Failed to parse input"));
+        }
+    };
+    println!("Parsed AST:\n {:#?}", program);
 
     // Generate code
     let context = Context::create();
