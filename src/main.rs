@@ -1,6 +1,7 @@
 mod ast;
 mod codegen;
 mod parser;
+mod token;
 
 use anyhow::Result;
 use clap::Parser;
@@ -31,7 +32,7 @@ fn main() -> Result<()> {
     let input = fs::read_to_string(&args.input)?;
 
     // Parse the input
-    let program = parser::parse(&input)?;
+    let program = parser::parse(&input).unwrap();
     println!("Parsed AST: {:#?}", program);
 
     // Generate code

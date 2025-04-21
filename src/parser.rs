@@ -1,75 +1,90 @@
-use anyhow::Result;
-use chumsky::prelude::*;
+use chumsky::{input::ValueInput, prelude::*};
+use logos::Logos;
 
-use crate::ast::{BinOp, Expr, Program, UnaryOp};
+use crate::{ast, token::Token};
 
-/// Parse the input string into a `Program`
-pub fn parse(input: &str) -> Result<Program> {
-    // Create a parser for expressions
-    let expr = recursive(|expr: Recursive<'_, char, Expr, Simple<char>>| {
-        // Parse integer literals
-        let int = text::int(10)
-            .map(|s: String| Expr::IntLit(s.parse().unwrap()))
-            .padded();
+pub fn parser<'a, I>() -> impl Parser<'a, I, ast::Program, extra::Err<Rich<'a, Token<'a>>>>
+where
+    I: ValueInput<'a, Token = Token<'a>, Span = SimpleSpan>,
+{
+    let expr = recursive(|expr| {
+        let literal = select! {
+            Token::Integer(value) => ast::Expr::IntLit(value.parse().unwrap())
+        };
 
-        // Parse expressions in parentheses
-        let atom = int
-            .or(expr.clone().delimited_by(just('('), just(')')))
-            .or(just('-')
-                .padded()
-                .ignore_then(expr.clone())
-                .map(|expr| Expr::UnaryOp {
-                    op: UnaryOp::Neg,
+        let primary = choice((
+            // literal
+            literal,
+            // "(" expr ")"
+            expr.clone()
+                .delimited_by(just(Token::LParen), just(Token::RParen)),
+        ));
+
+        let unary = choice((
+            // "-" primary
+            just(Token::Sub)
+                .ignore_then(primary.clone())
+                .map(|expr| ast::Expr::UnaryOp {
+                    op: ast::UnaryOp::Neg,
                     expr: Box::new(expr),
-                }));
+                }),
+            // primary
+            primary,
+        ));
 
-        // Parse products and quotients with higher precedence
-        let mul_div = just('*')
-            .to(BinOp::Mul)
-            .or(just('/').to(BinOp::Div))
-            .padded();
+        let multiplication = unary.clone().foldl(
+            choice((
+                just(Token::Mul).to(ast::BinOp::Mul),
+                just(Token::Div).to(ast::BinOp::Div),
+            ))
+            .then(unary)
+            .repeated(),
+            |lhs, (op, rhs)| ast::Expr::BinOp {
+                lhs: Box::new(lhs),
+                op,
+                rhs: Box::new(rhs),
+            },
+        );
 
-        let product = atom
-            .clone()
-            .then(mul_div.then(atom.clone()).repeated())
-            .map(|(first, rest)| {
-                rest.iter().fold(first, |lhs, (op, rhs)| Expr::BinOp {
-                    lhs: Box::new(lhs),
-                    op: *op,
-                    rhs: Box::new(rhs.clone()),
-                })
-            });
+        let addition = multiplication.clone().foldl(
+            choice((
+                just(Token::Add).to(ast::BinOp::Add),
+                just(Token::Sub).to(ast::BinOp::Sub),
+            ))
+            .then(multiplication)
+            .repeated(),
+            |lhs, (op, rhs)| ast::Expr::BinOp {
+                lhs: Box::new(lhs),
+                op,
+                rhs: Box::new(rhs),
+            },
+        );
 
-        // Parse sums and differences with lower precedence
-        let add_sub = just('+')
-            .to(BinOp::Add)
-            .or(just('-').to(BinOp::Sub))
-            .padded();
-
-        product
-            .clone()
-            .then(add_sub.then(product.clone()).repeated())
-            .map(|(first, rest)| {
-                rest.iter().fold(first, |lhs, (op, rhs)| Expr::BinOp {
-                    lhs: Box::new(lhs),
-                    op: *op,
-                    rhs: Box::new(rhs.clone()),
-                })
-            })
+        addition
     });
 
-    // Parse the entire input as an expression and convert to a program
-    let parser = expr.then_ignore(end());
+    expr.then_ignore(end()).map(|expr| ast::Program { expr })
+}
 
-    match parser.parse(input.trim()) {
-        Ok(expr) => Ok(Program { expr }),
-        Err(errors) => {
-            let error_msg = errors
-                .into_iter()
-                .map(|e| format!("{:?}", e))
-                .collect::<Vec<_>>()
-                .join(", ");
-            Err(anyhow::anyhow!("Parse error: {}", error_msg))
-        }
-    }
+pub fn parse(src: &str) -> ParseResult<ast::Program, chumsky::error::Rich<'_, Token<'_>>> {
+    // Create a logos lexer over the source code
+    let token_iter = Token::lexer(src)
+        .spanned()
+        // Convert logos errors into tokens. We want parsing to be recoverable and not fail at the lexing stage, so
+        // we have a dedicated `Token::Error` variant that represents a token error that was previously encountered
+        .map(|(tok, span)| match tok {
+            // Turn the `Range<usize>` spans logos gives us into chumsky's `SimpleSpan` via `Into`, because it's easier
+            // to work with
+            Ok(tok) => (tok, span.into()),
+            Err(()) => (Token::Error, span.into()),
+        });
+
+    // Turn the token iterator into a stream that chumsky can use for things like backtracking
+    let token_stream = chumsky::input::Stream::from_iter(token_iter)
+        // Tell chumsky to split the (Token, SimpleSpan) stream into its parts so that it can handle the spans for us
+        // This involves giving chumsky an 'end of input' span: we just use a zero-width span at the end of the string
+        .map((0..src.len()).into(), |(t, s): (_, _)| (t, s));
+
+    // Parse the token stream with our chumsky parser
+    parser().parse(token_stream)
 }
