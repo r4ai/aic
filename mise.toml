@@ -1,3 +1,4 @@
 [tools]
 "cargo:cargo-insta" = "1.42.2"
+clang = "18"
 rust = "1.85.1"
