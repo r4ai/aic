@@ -2,3 +2,21 @@
 "cargo:cargo-insta" = "1.42.2"
 clang = "18"
 rust = "1.85.1"
+
+[tasks.format]
+run = "cargo fmt --all -- --check"
+
+[tasks.format-write]
+run = "cargo fmt --all"
+
+[tasks.lint]
+run = "cargo clippy -- -D warnings"
+
+[tasks.lint-write]
+run = "cargo clippy --fix --allow-dirty --allow-staged"
+
+[tasks.build]
+run = "cargo build"
+
+[tasks.test]
+run = "cargo test"
