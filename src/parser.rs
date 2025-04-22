@@ -167,3 +167,85 @@ pub fn parse(src: &str) -> ParseResult<ast::Program, chumsky::error::Rich<'_, To
     // Parse the token stream with our chumsky parser
     parser().parse(token_stream)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use insta::assert_yaml_snapshot;
+
+    // Helper function to check if a parse result has no errors
+    fn has_no_errors<T, E>(result: &ParseResult<T, E>) -> bool {
+        result.errors().len() == 0
+    }
+
+    #[test]
+    fn test_parse_integer_literal() {
+        let input = "42";
+        let result = parse(input);
+        assert!(has_no_errors(&result));
+
+        let program = result.into_result().unwrap();
+        assert_yaml_snapshot!(program);
+    }
+
+    #[test]
+    fn test_parse_binary_expression() {
+        let input = "42 + 10";
+        let result = parse(input);
+        assert!(has_no_errors(&result));
+
+        let program = result.into_result().unwrap();
+        assert_yaml_snapshot!(program);
+    }
+
+    #[test]
+    fn test_parse_complex_expression() {
+        let input = "42 + (10 * 5) - 8";
+        let result = parse(input);
+        assert!(has_no_errors(&result));
+
+        let program = result.into_result().unwrap();
+        assert_yaml_snapshot!(program);
+    }
+
+    #[test]
+    fn test_parse_unary_expression() {
+        let input = "-42";
+        let result = parse(input);
+        assert!(has_no_errors(&result));
+
+        let program = result.into_result().unwrap();
+        assert_yaml_snapshot!(program);
+    }
+
+    #[test]
+    fn test_parse_function_declaration() {
+        let input = "fn zero() -> i32 { 0 }";
+        let result = parse(input);
+        assert!(has_no_errors(&result));
+
+        let program = result.into_result().unwrap();
+        assert_yaml_snapshot!(program);
+    }
+
+    #[test]
+    fn test_parse_function_with_multiple_statements() {
+        let input = "fn compute() -> i32 { 10 + 20; 30 + 40 }";
+        let result = parse(input);
+        assert!(has_no_errors(&result));
+
+        let program = result.into_result().unwrap();
+        assert_yaml_snapshot!(program);
+    }
+
+    #[test]
+    fn test_parse_error_recovery() {
+        let input = "42 + (10 * 5 - 8";
+        let result = parse(input);
+
+        // This should contain errors
+        assert!(!has_no_errors(&result));
+        let errors = result.into_errors();
+        assert_yaml_snapshot!(format!("{:?}", errors));
+    }
+}

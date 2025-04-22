@@ -1,0 +1,8 @@
+---
+source: src/parser.rs
+expression: program
+---
+statements:
+  - Expr:
+      expr:
+        IntLit: 42

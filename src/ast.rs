@@ -1,5 +1,7 @@
+use serde::Serialize;
+
 /// Expression
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub enum Expr {
     /// An integer literal
     IntLit(i64),
@@ -22,7 +24,7 @@ pub enum Expr {
 }
 
 /// Binary operator
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize)]
 pub enum BinOp {
     /// Addition (+)
     Add,
@@ -35,14 +37,14 @@ pub enum BinOp {
 }
 
 /// Unary operator
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize)]
 pub enum UnaryOp {
     /// Negation (-)
     Neg,
 }
 
 /// Type
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize)]
 pub enum Type {
     I32,
     I64,
@@ -53,7 +55,7 @@ pub enum Type {
 }
 
 /// Function parameter
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize)]
 pub struct FunctionParameter<'a> {
     /// The name of the parameter
     pub name: &'a str,
@@ -63,7 +65,7 @@ pub struct FunctionParameter<'a> {
 }
 
 /// Statements
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub enum Stmt<'a> {
     /// A function declaration
     FnDecl {
@@ -91,7 +93,7 @@ pub enum Stmt<'a> {
 }
 
 /// The top-level program structure
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Program<'a> {
     /// The expression that makes up the program
     pub statements: Vec<Stmt<'a>>,

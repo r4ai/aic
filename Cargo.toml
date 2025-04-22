@@ -12,3 +12,8 @@ inkwell = { git = "https://github.com/TheDan64/inkwell", branch = "master", feat
 clap = { version = "4.4", features = ["derive"] }
 logos = "0.15.0"
 ariadne = "0.5.1"
+serde = { version = "1.31.0", features = ["derive"] }
+
+[dev-dependencies]
+insta = { version = "1.42.2", features = ["yaml"] }
+pretty_assertions = "1.4.1"

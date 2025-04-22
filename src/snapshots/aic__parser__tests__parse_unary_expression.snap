@@ -1,0 +1,11 @@
+---
+source: src/parser.rs
+expression: program
+---
+statements:
+  - Expr:
+      expr:
+        UnaryOp:
+          op: Neg
+          expr:
+            IntLit: 42
