@@ -1,4 +1,4 @@
-/// The AST node representing an integer-only expression
+/// Expression
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expr {
     /// An integer literal
@@ -21,7 +21,7 @@ pub enum Expr {
     },
 }
 
-/// Binary operators
+/// Binary operator
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum BinOp {
     /// Addition (+)
@@ -34,16 +34,65 @@ pub enum BinOp {
     Div,
 }
 
-/// Unary operators
+/// Unary operator
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum UnaryOp {
     /// Negation (-)
     Neg,
 }
 
+/// Type
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Type {
+    I32,
+    I64,
+    F32,
+    F64,
+    Void,
+    String,
+}
+
+/// Function parameter
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct FunctionParameter<'a> {
+    /// The name of the parameter
+    pub name: &'a str,
+
+    /// The type of the parameter
+    pub r#type: Type,
+}
+
+/// Statements
+#[derive(Debug, Clone, PartialEq)]
+pub enum Stmt<'a> {
+    /// A function declaration
+    FnDecl {
+        /// The name of the function
+        name: &'a str,
+        /// The parameters of the function
+        params: Vec<FunctionParameter<'a>>,
+        /// The return type of the function
+        r#type: Type,
+        /// The body of the function
+        body: Vec<Stmt<'a>>,
+    },
+
+    /// An expression statement
+    ExprStmt {
+        /// The expression
+        expr: Box<Expr>,
+    },
+
+    /// An expression
+    Expr {
+        /// The expression
+        expr: Box<Expr>,
+    },
+}
+
 /// The top-level program structure
 #[derive(Debug, Clone, PartialEq)]
-pub struct Program {
+pub struct Program<'a> {
     /// The expression that makes up the program
-    pub expr: Expr,
+    pub statements: Vec<Stmt<'a>>,
 }
