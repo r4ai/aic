@@ -14,7 +14,6 @@ import { $ } from "jsr:@david/dax";
 
 const URL = Deno.env.get("LLVM_FILE_URL");
 const WORKSPACE = Deno.env.get("GITHUB_WORKSPACE") ?? Deno.cwd();
-const DIST = "llvm-tmp";
 const DESTDIR = `${WORKSPACE}/llvm`;
 
 /**
@@ -48,9 +47,7 @@ await group(`Download LLVM from '${URL}'`, async () => {
 });
 
 await group("Extract & move", async () => {
-  await $`tar -xf llvm.tar.xz`;
-  await $`mv ${DIST}/* ${DESTDIR}`;
-  await $`rm -rf llvm.tar.xz ${DIST}`;
+  await $`tar -xf llvm.tar.xz --strip-components=1 -C ${DESTDIR}`;
 });
 
 await group("Verify binaries", async () => {
