@@ -42,27 +42,51 @@ Detailed multi‑phase roadmap in [`docs/roadmap.md`](docs/roadmap.md):
 cargo build --release
 ```
 
-### Compile to Executable
+### Compile to Executable or LLVM IR
 
-```bash
-# example: compile src/main.aic to an executable 'a.out' (default)
-cargo run --release -- build src/main.aic -o a.out
+After building, you can compile an AIC source file using the following CLI options:
 
-# example: compile src/main.aic to out.ll (LLVM IR only, for debugging)
-cargo run --release -- build src/main.aic -o out.ll --emit=llvm-ir
 ```
+USAGE:
+    aic --input <INPUT> [--output <OUTPUT>] [--emit-llvm]
+
+FLAGS:
+    -i, --input <INPUT>      Input file to compile (required)
+    -o, --output <OUTPUT>    Output file (optional; defaults to <input>.o or prints IR to stdout)
+        --emit-llvm          Emit LLVM IR instead of an object file
+```
+
+#### Examples
+
+- Compile to an object file (default output is <input>.o):
+
+  ```bash
+  cargo run --release -- --input src/main.aic
+  ```
+
+  or with explicit output:
+
+  ```bash
+  cargo run --release -- --input src/main.aic --output main.o
+  ```
+
+- Emit LLVM IR to stdout:
+  ```bash
+  cargo run --release -- --input src/main.aic --emit-llvm
+  ```
 
 ### Run
 
+After compiling to an llvm object file, you can compile it to an executable using clang:
+
 ```bash
-# Run the compiled executable
-./a.out
+clang -o a.out main.o
 ```
 
-## Testing
+Then run the executable:
 
 ```bash
-cargo test
+./a.out
 ```
 
 ## Development
@@ -100,4 +124,3 @@ Contributions welcome! See [`docs/roadmap.md`](docs/roadmap.md) for planned feat
 [logos]: https://github.com/maciejhirsz/logos
 [chumsky]: https://github.com/zesterer/chumsky
 [Inkwell]: https://github.com/TheDan64/inkwell
-[lld]: https://lld.llvm.org/
