@@ -7,10 +7,12 @@ AIC is a simple, compiled programming language written in Rust that emits LLVM I
 - Compiled directly to native executables via LLVM and [Inkwell]
 - Lexer powered by [logos]
 - Parser powered by [chumsky]
-- Core syntax: `fn`, `let`, `if`, `else`, `for`, `while`, `return`, `mod`
-- Basic types: `i32`, `f64`, `bool`, `string`
+- Core syntax: `fn`, `let`, `if`, `else`, `for`, `while`, `return`, `mod` (WIP)
+- Basic types: `i32`, `f64`, `bool`, `string` (WIP)
 - Modules & scoped symbol resolution
 - Simple standard library (I/O primitives)
+
+For example code, see [`tests/fixtures`](tests/fixtures).
 
 ## Roadmap
 
