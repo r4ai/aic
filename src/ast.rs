@@ -80,6 +80,7 @@ pub enum Stmt<'a> {
     },
 
     /// An expression statement
+    #[allow(clippy::enum_variant_names)]
     ExprStmt {
         /// The expression
         expr: Box<Expr>,
