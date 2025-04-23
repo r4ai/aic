@@ -89,3 +89,23 @@ fn test_function_call_aic() {
         "exit code was {actual}, expected {expected}",
     );
 }
+
+#[test]
+fn test_let_and_var_aic() {
+    let actual = compile_and_run_aic("tests/fixtures/let_and_var.aic").code;
+    let expected = 30;
+    assert_eq!(
+        actual, expected,
+        "exit code was {actual}, expected {expected}",
+    );
+}
+
+#[test]
+fn test_scopes_aic() {
+    let actual = compile_and_run_aic("tests/fixtures/scopes.aic").code;
+    let expected = 0;
+    assert_eq!(
+        actual, expected,
+        "exit code was {actual}, expected {expected}",
+    );
+}

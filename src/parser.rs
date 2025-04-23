@@ -25,6 +25,9 @@ where
             Token::Integer(value) => ast::Expr::IntLit(value.parse().unwrap())
         };
 
+        // variable reference (identifier as expression)
+        let var_ref = identifier.map(|name| ast::Expr::VarRef { name });
+
         // "(" [ { expr "," } expr ] ")"
         let call_args = expr
             .clone()
@@ -40,6 +43,8 @@ where
         let primary = choice((
             // function call
             function_call,
+            // variable reference
+            var_ref,
             // literal
             literal,
             // "(" expr ")"
@@ -97,6 +102,18 @@ where
                 expr: Box::new(expr),
             });
 
+        // "let" identifier [":" type] ["=" expr] ";"
+        let let_declaration = just(Token::LetDeclaration)
+            .ignore_then(identifier)
+            .then(just(Token::Colon).ignore_then(r#type).or_not())
+            .then(just(Token::Assign).ignore_then(expr.clone()).or_not())
+            .then_ignore(just(Token::Semicolon))
+            .map(|((name, ty), value)| ast::Stmt::VarDecl {
+                name,
+                r#type: ty,
+                value,
+            });
+
         // identifier ":" type
         let function_parameter = identifier
             .then_ignore(just(Token::Colon))
@@ -131,7 +148,7 @@ where
                 body,
             });
 
-        let statement = choice((function_declaration, expr_statement));
+        let statement = choice((let_declaration, function_declaration, expr_statement));
 
         statement
             .repeated()
@@ -181,6 +198,7 @@ pub fn parse(src: &str) -> ParseResult<ast::Program, chumsky::error::Rich<'_, To
 #[cfg(test)]
 mod tests {
     use super::*;
+    use indoc::indoc;
     use insta::assert_yaml_snapshot;
 
     // Helper function to check if a parse result has no errors
@@ -250,7 +268,40 @@ mod tests {
 
     #[test]
     fn test_parse_function_call() {
-        let input = "fn zero() -> i32 { 0 }\nzero()";
+        let input = indoc! {"
+            fn zero() -> i32 { 0 }
+            zero()
+        "};
+        let result = parse(input);
+        assert!(has_no_errors(&result));
+
+        let program = result.into_result().unwrap();
+        assert_yaml_snapshot!(program);
+    }
+
+    #[test]
+    fn test_parse_variable_declaration() {
+        let input = "let x: i32 = 42;";
+        let result = parse(input);
+        assert!(has_no_errors(&result));
+
+        let program = result.into_result().unwrap();
+        assert_yaml_snapshot!(program);
+    }
+
+    #[test]
+    fn test_parse_variable_declaration_without_type() {
+        let input = "let x = 42;";
+        let result = parse(input);
+        assert!(has_no_errors(&result));
+
+        let program = result.into_result().unwrap();
+        assert_yaml_snapshot!(program);
+    }
+
+    #[test]
+    fn test_parse_variable_declaration_without_value() {
+        let input = "let x: i32;";
         let result = parse(input);
         assert!(has_no_errors(&result));
 

@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use anyhow::{Result, bail};
 use inkwell::{
     OptimizationLevel,
@@ -5,15 +7,67 @@ use inkwell::{
     module::Module,
     targets::{CodeModel, InitializationConfig, RelocMode, Target, TargetMachine},
     types::BasicMetadataTypeEnum,
+    values::BasicValueEnum,
 };
 
 use crate::ast;
+
+pub struct Env<'ctx> {
+    scopes: Vec<HashMap<&'ctx str, Option<inkwell::values::BasicValueEnum<'ctx>>>>,
+}
+
+impl<'ctx> Env<'ctx> {
+    fn new() -> Self {
+        Self {
+            scopes: vec![HashMap::new()],
+        }
+    }
+
+    fn push_scope(&mut self) {
+        self.scopes.push(HashMap::new());
+    }
+
+    fn pop_scope(&mut self) {
+        self.scopes.pop();
+    }
+
+    fn declare_var(
+        &mut self,
+        name: &'ctx str,
+        value: inkwell::values::BasicValueEnum<'ctx>,
+    ) -> Result<()> {
+        if self
+            .scopes
+            .last_mut()
+            .unwrap()
+            .insert(name, Some(value))
+            .is_some()
+        {
+            bail!("Variable '{}' already declared", name);
+        }
+        Ok(())
+    }
+
+    fn resolve_var(&self, name: &'ctx str) -> Result<inkwell::values::BasicValueEnum<'ctx>> {
+        for scope in self.scopes.iter().rev() {
+            if let Some(value) = scope.get(name) {
+                if let Some(value) = value {
+                    return Ok(*value);
+                } else {
+                    bail!("Variable '{}' is not initialized", name);
+                }
+            }
+        }
+        bail!("Variable '{}' not found", name);
+    }
+}
 
 /// Code generator for compiling AST to LLVM IR
 pub struct CodeGen<'ctx> {
     context: &'ctx Context,
     module: Module<'ctx>,
     builder: inkwell::builder::Builder<'ctx>,
+    env: Env<'ctx>,
 }
 
 impl<'ctx> CodeGen<'ctx> {
@@ -21,15 +75,17 @@ impl<'ctx> CodeGen<'ctx> {
     pub fn new(context: &'ctx Context, module_name: &str) -> Self {
         let module = context.create_module(module_name);
         let builder = context.create_builder();
+        let env = Env::new();
         Self {
             context,
             module,
             builder,
+            env,
         }
     }
 
     /// Compile the program and return the resulting module
-    pub fn compile(&self, program: &ast::Program) -> Result<()> {
+    pub fn compile(&mut self, program: &'ctx ast::Program) -> Result<()> {
         // Create a main function
         let i32_type = self.context.i32_type();
         let fn_type = i32_type.fn_type(&[], false);
@@ -51,7 +107,7 @@ impl<'ctx> CodeGen<'ctx> {
     }
 
     /// Generate LLVM IR for a program
-    pub fn gen_program(&self, program: &ast::Program) -> Result<()> {
+    pub fn gen_program(&mut self, program: &'ctx ast::Program) -> Result<()> {
         for stmt in &program.statements {
             self.gen_stmt(stmt)?;
         }
@@ -59,7 +115,7 @@ impl<'ctx> CodeGen<'ctx> {
     }
 
     /// Generate LLVM IR for a statement
-    fn gen_stmt(&self, stmt: &ast::Stmt) -> Result<()> {
+    fn gen_stmt(&mut self, stmt: &'ctx ast::Stmt) -> Result<()> {
         match stmt {
             ast::Stmt::FnDecl {
                 name,
@@ -68,6 +124,9 @@ impl<'ctx> CodeGen<'ctx> {
                 body,
             } => {
                 let initial_pos = self.builder.get_insert_block().unwrap();
+
+                // Push a new scope
+                self.env.push_scope();
 
                 // Create function type
                 let param_types: Vec<BasicMetadataTypeEnum> = params
@@ -91,6 +150,14 @@ impl<'ctx> CodeGen<'ctx> {
                 };
                 let function = self.module.add_function(name, fn_type, None);
 
+                // Set the function parameters
+                for (i, param) in function.get_param_iter().enumerate() {
+                    let name = params[i].name;
+                    self.env.declare_var(name, param).map_err(|e| {
+                        anyhow::anyhow!("Failed to declare parameter '{}': {}", name, e)
+                    })?;
+                }
+
                 // Create basic block for the function
                 let basic_block = self.context.append_basic_block(function, "entry");
                 self.builder.position_at_end(basic_block);
@@ -109,6 +176,9 @@ impl<'ctx> CodeGen<'ctx> {
                         .map_err(|e| anyhow::anyhow!("Failed to build return: {}", e))?;
                 }
 
+                // Pop the scope
+                self.env.pop_scope();
+
                 // Change the position of the builder back to the initial position
                 self.builder.position_at_end(initial_pos);
             }
@@ -124,38 +194,77 @@ impl<'ctx> CodeGen<'ctx> {
                     .build_return(Some(&value))
                     .map_err(|e| anyhow::anyhow!("Failed to build return: {}", e))?;
             }
+            ast::Stmt::VarDecl {
+                name,
+                r#type,
+                value,
+            } => {
+                // Generate code for the variable declaration
+                let value: BasicValueEnum = if let Some(value) = value {
+                    self.gen_expr(value)?
+                } else {
+                    // If no value is provided, use a default value
+                    match r#type {
+                        Some(ast::Type::I32) => self.context.i32_type().const_zero().into(),
+                        Some(ast::Type::I64) => self.context.i64_type().const_zero().into(),
+                        Some(ast::Type::F32) => self.context.f32_type().const_zero().into(),
+                        Some(ast::Type::F64) => self.context.f64_type().const_zero().into(),
+                        _ => bail!("Unsupported type for variable declaration"),
+                    }
+                };
+
+                // Declare the variable in the current scope
+                self.env
+                    .declare_var(name, value)
+                    .map_err(|e| anyhow::anyhow!("Failed to declare variable '{}': {}", name, e))?;
+            }
         }
         Ok(())
     }
 
     /// Generate LLVM IR for an expression
-    fn gen_expr(&self, expr: &ast::Expr) -> Result<inkwell::values::IntValue<'ctx>> {
+    fn gen_expr(&self, expr: &'ctx ast::Expr) -> Result<inkwell::values::BasicValueEnum<'ctx>> {
         match expr {
             ast::Expr::IntLit(value) => {
                 let i32_type = self.context.i32_type();
-                Ok(i32_type.const_int(*value as u64, false))
+                Ok(i32_type.const_int(*value as u64, false).into())
             }
             ast::Expr::BinOp { lhs, op, rhs } => {
                 let lhs = self.gen_expr(lhs)?;
                 let rhs = self.gen_expr(rhs)?;
 
+                if lhs.get_type() != rhs.get_type() {
+                    bail!("Type mismatch in binary operation");
+                }
+
+                if !lhs.is_int_value() || !rhs.is_int_value() {
+                    bail!("Binary operation only supports integer values");
+                }
+
+                let lhs = lhs.into_int_value();
+                let rhs = rhs.into_int_value();
+
                 match op {
                     ast::BinOp::Add => self
                         .builder
                         .build_int_add(lhs, rhs, "addtmp")
-                        .map_err(|e| anyhow::anyhow!("Failed to build add: {}", e)),
+                        .map_err(|e| anyhow::anyhow!("Failed to build add: {}", e))
+                        .map(|v| v.into()),
                     ast::BinOp::Sub => self
                         .builder
                         .build_int_sub(lhs, rhs, "subtmp")
-                        .map_err(|e| anyhow::anyhow!("Failed to build sub: {}", e)),
+                        .map_err(|e| anyhow::anyhow!("Failed to build sub: {}", e))
+                        .map(|v| v.into()),
                     ast::BinOp::Mul => self
                         .builder
                         .build_int_mul(lhs, rhs, "multmp")
-                        .map_err(|e| anyhow::anyhow!("Failed to build mul: {}", e)),
+                        .map_err(|e| anyhow::anyhow!("Failed to build mul: {}", e))
+                        .map(|v| v.into()),
                     ast::BinOp::Div => self
                         .builder
                         .build_int_signed_div(lhs, rhs, "divtmp")
-                        .map_err(|e| anyhow::anyhow!("Failed to build div: {}", e)),
+                        .map_err(|e| anyhow::anyhow!("Failed to build div: {}", e))
+                        .map(|v| v.into()),
                 }
             }
             ast::Expr::UnaryOp {
@@ -163,10 +272,16 @@ impl<'ctx> CodeGen<'ctx> {
                 expr,
             } => {
                 let value = self.gen_expr(expr)?;
+                if !value.is_int_value() {
+                    bail!("Unary negation only supports integer values");
+                }
+                let value = value.into_int_value();
+
                 let zero = self.context.i32_type().const_int(0, false);
                 self.builder
                     .build_int_sub(zero, value, "negtmp")
                     .map_err(|e| anyhow::anyhow!("Failed to build negation: {}", e))
+                    .map(|v| v.into())
             }
             ast::Expr::FnCall { name, args } => {
                 // Look up the function by name
@@ -186,12 +301,16 @@ impl<'ctx> CodeGen<'ctx> {
                     "calltmp",
                 )?;
                 // Assume all functions return i32 for now
-                let ret_val = call_site
-                    .try_as_basic_value()
-                    .left()
-                    .unwrap()
-                    .into_int_value();
+                let ret_val = call_site.try_as_basic_value().left().unwrap();
                 Ok(ret_val)
+            }
+            ast::Expr::VarRef { name } => {
+                // Look up the variable by name
+                let value = self
+                    .env
+                    .resolve_var(name)
+                    .map_err(|e| anyhow::anyhow!("Variable '{}' not found: {}", name, e))?;
+                Ok(value)
             }
         }
     }

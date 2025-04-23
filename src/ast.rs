@@ -28,6 +28,11 @@ pub enum Expr<'a> {
         /// The arguments
         args: Vec<Expr<'a>>,
     },
+    /// A variable reference (identifier)
+    VarRef {
+        /// The variable name
+        name: &'a str,
+    },
 }
 
 /// Binary operator
@@ -84,6 +89,16 @@ pub enum Stmt<'a> {
         r#type: Type,
         /// The body of the function
         body: Vec<Stmt<'a>>,
+    },
+
+    /// A variable declaration (let)
+    VarDecl {
+        /// The variable name
+        name: &'a str,
+        /// The type (optional)
+        r#type: Option<Type>,
+        /// The value (optional)
+        value: Option<Expr<'a>>,
     },
 
     /// An expression statement

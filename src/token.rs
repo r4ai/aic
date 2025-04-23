@@ -50,6 +50,9 @@ pub enum Token<'a> {
     #[token("}")]
     RBrace,
 
+    #[token("=")]
+    Assign,
+
     #[regex(r"[ \t\f\n]+", logos::skip)]
     Whitespace,
 }
@@ -73,6 +76,7 @@ impl std::fmt::Display for Token<'_> {
             Self::LBrace => write!(f, "{{"),
             Self::RBrace => write!(f, "}}"),
             Self::RightArrow => write!(f, "->"),
+            Self::Assign => write!(f, "="),
             Self::Whitespace => write!(f, "<whitespace>"),
             Self::Error => write!(f, "<error>"),
         }

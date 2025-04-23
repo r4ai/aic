@@ -63,7 +63,7 @@ fn main() -> Result<()> {
         .and_then(|name| name.to_str())
         .unwrap_or("module");
 
-    let codegen = codegen::CodeGen::new(&context, module_name);
+    let mut codegen = codegen::CodeGen::new(&context, module_name);
     codegen.compile(&program)?;
 
     // Output

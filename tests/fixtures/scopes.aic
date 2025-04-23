@@ -1,0 +1,18 @@
+fn plus(a: i32, b: i32) -> i32 {
+  let c = a + b;
+  c
+}
+
+fn minus(a: i32, b: i32) -> i32 {
+  let c = a - b;
+  c
+}
+
+fn calc() -> i32 {
+  let a = plus(1, 1);
+  let b = plus(1, 1);
+  let c = minus(a, b);
+  c
+}
+
+calc()
