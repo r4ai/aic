@@ -21,9 +21,9 @@ runs:
         key: llvm-${{ runner.os }}-${{ inputs.llvm-file-url }}
 
     - name: Install LLVM
-      if: steps.cache.outputs.cache-hit != 'true'
       env:
         LLVM_FILE_URL: ${{ inputs.llvm-file-url }}
+        SKIP_INSTALL: ${{ steps.cache.outputs.cache-hit }}
       shell: bash
       run: .github/scripts/install-llvm.ts
 
