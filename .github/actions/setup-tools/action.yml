@@ -23,7 +23,7 @@ runs:
     - name: Install LLVM
       env:
         LLVM_FILE_URL: ${{ inputs.llvm-file-url }}
-        SKIP_INSTALL: ${{ steps.cache.outputs.cache-hit }}
+        LLVM_SKIP_INSTALL: ${{ steps.cache.outputs.cache-hit }}
       shell: bash
       run: .github/scripts/install-llvm.ts
 
