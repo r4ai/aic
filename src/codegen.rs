@@ -42,6 +42,8 @@ impl<'ctx> CodeGen<'ctx> {
 
         // Verify the module
         if self.module.verify().is_err() {
+            eprintln!("LLVM IR:\n {}\n", self.module.print_to_string().to_string());
+            eprintln!("Error message:\n {:?}\n", self.module.verify().unwrap_err());
             return Err(anyhow::anyhow!("Module verification failed"));
         }
 
@@ -165,6 +167,31 @@ impl<'ctx> CodeGen<'ctx> {
                 self.builder
                     .build_int_sub(zero, value, "negtmp")
                     .map_err(|e| anyhow::anyhow!("Failed to build negation: {}", e))
+            }
+            ast::Expr::FnCall { name, args } => {
+                // Look up the function by name
+                let function = self
+                    .module
+                    .get_function(name)
+                    .ok_or_else(|| anyhow::anyhow!("Function '{}' not found", name))?;
+                // Generate code for each argument
+                let mut arg_values = Vec::new();
+                for arg in args {
+                    arg_values.push(self.gen_expr(arg)?);
+                }
+                // Build the call
+                let call_site = self.builder.build_call(
+                    function,
+                    &arg_values.iter().map(|v| (*v).into()).collect::<Vec<_>>(),
+                    "calltmp",
+                )?;
+                // Assume all functions return i32 for now
+                let ret_val = call_site
+                    .try_as_basic_value()
+                    .left()
+                    .unwrap()
+                    .into_int_value();
+                Ok(ret_val)
             }
         }
     }

@@ -23,4 +23,7 @@ run = "cargo clippy --fix --allow-dirty --allow-staged"
 run = "cargo build"
 
 [tasks.test]
-run = "cargo test"
+run = "cargo insta test"
+
+[tasks.test-review]
+run = "cargo insta review"

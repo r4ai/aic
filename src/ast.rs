@@ -2,24 +2,31 @@ use serde::Serialize;
 
 /// Expression
 #[derive(Debug, Clone, PartialEq, Serialize)]
-pub enum Expr {
+pub enum Expr<'a> {
     /// An integer literal
     IntLit(i64),
     /// A binary operation
     BinOp {
         /// The left-hand side expression
-        lhs: Box<Expr>,
+        lhs: Box<Expr<'a>>,
         /// The operator
         op: BinOp,
         /// The right-hand side expression
-        rhs: Box<Expr>,
+        rhs: Box<Expr<'a>>,
     },
     /// A unary operation
     UnaryOp {
         /// The operator
         op: UnaryOp,
         /// The expression
-        expr: Box<Expr>,
+        expr: Box<Expr<'a>>,
+    },
+    /// A function call
+    FnCall {
+        /// The function name
+        name: &'a str,
+        /// The arguments
+        args: Vec<Expr<'a>>,
     },
 }
 
@@ -83,13 +90,13 @@ pub enum Stmt<'a> {
     #[allow(clippy::enum_variant_names)]
     ExprStmt {
         /// The expression
-        expr: Box<Expr>,
+        expr: Box<Expr<'a>>,
     },
 
     /// An expression
     Expr {
         /// The expression
-        expr: Box<Expr>,
+        expr: Box<Expr<'a>>,
     },
 }
 

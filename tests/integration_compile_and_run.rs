@@ -79,3 +79,13 @@ fn test_negative_aic() {
     // On most platforms, returning a negative value from main results in exit code 1
     assert_eq!(result.code, 1, "exit code was {}, expected 1", result.code);
 }
+
+#[test]
+fn test_function_call_aic() {
+    let actual = compile_and_run_aic("tests/fixtures/function_call.aic").code;
+    let expected = 0;
+    assert_eq!(
+        actual, expected,
+        "exit code was {actual}, expected {expected}",
+    );
+}

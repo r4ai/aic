@@ -25,7 +25,21 @@ where
             Token::Integer(value) => ast::Expr::IntLit(value.parse().unwrap())
         };
 
+        // "(" [ { expr "," } expr ] ")"
+        let call_args = expr
+            .clone()
+            .separated_by(just(Token::Comma))
+            .collect::<Vec<_>>()
+            .delimited_by(just(Token::LParen), just(Token::RParen));
+
+        // function call: identifier '(' [args] ')' (only in expression context)
+        let function_call = identifier
+            .then(call_args)
+            .map(|(name, args)| ast::Expr::FnCall { name, args });
+
         let primary = choice((
+            // function call
+            function_call,
             // literal
             literal,
             // "(" expr ")"
@@ -227,6 +241,16 @@ mod tests {
     #[test]
     fn test_parse_function_with_multiple_statements() {
         let input = "fn compute() -> i32 { 10 + 20; 30 + 40 }";
+        let result = parse(input);
+        assert!(has_no_errors(&result));
+
+        let program = result.into_result().unwrap();
+        assert_yaml_snapshot!(program);
+    }
+
+    #[test]
+    fn test_parse_function_call() {
+        let input = "fn zero() -> i32 { 0 }\nzero()";
         let result = parse(input);
         assert!(has_no_errors(&result));
 
