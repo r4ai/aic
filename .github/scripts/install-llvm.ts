@@ -81,7 +81,11 @@ const githubEnv = Deno.env.get("GITHUB_ENV");
 if (githubEnv) {
   await Deno.writeTextFile(
     githubEnv,
-    `PKG_CONFIG_PATH=${DESTDIR}/lib/pkgconfig\n`,
+    [
+      `PKG_CONFIG_PATH=${DESTDIR}/lib/pkgconfig`,
+      `LIBRARY_PATH=${DESTDIR}/lib:$LIBRARY_PATH`,
+      `LD_LIBRARY_PATH=${DESTDIR}/lib:$LD_LIBRARY_PATH`,
+    ].join("\n") + "\n",
     { append: true },
   );
 }
