@@ -40,7 +40,11 @@ if (!URL) {
 //------------------------------------------------------------
 await group("Install prerequisites", async () => {
   await $`sudo apt-get -y update`;
-  await $`sudo apt-get -y install libtinfo5`;
+
+  // Install libtinfo5
+  const deb = "libtinfo5_6.3-2ubuntu0.1_amd64.deb";
+  await $`wget -q http://security.ubuntu.com/ubuntu/pool/universe/n/ncurses/${deb}`;
+  await $`sudo dpkg -i ${deb}`;
 });
 
 //------------------------------------------------------------
