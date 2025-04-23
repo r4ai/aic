@@ -6,6 +6,9 @@ on:
   pull_request:
   workflow_dispatch:
 
+env:
+  LLVM_FILE_URL: https://github.com/llvm/llvm-project/releases/download/llvmorg-18.1.8/clang+llvm-18.1.8-x86_64-linux-gnu-ubuntu-18.04.tar.xz
+
 jobs:
   format:
     name: Format
@@ -43,9 +46,7 @@ jobs:
       - name: Install Tools
         uses: jdx/mise-action@v2
       - name: Install LLVM
-        uses: KyleMayes/install-llvm-action@v2
-        with:
-          version: "18.1.8"
+        run: .github/scripts/install-llvm.ts
       - name: Cache dependencies
         uses: Swatinem/rust-cache@82a92a6e8fbeee089604da2575dc567ae9ddeaab # v2.7.5
       - name: Build
@@ -59,9 +60,7 @@ jobs:
       - name: Install Tools
         uses: jdx/mise-action@v2
       - name: Install LLVM
-        uses: KyleMayes/install-llvm-action@v2
-        with:
-          version: "18.1.8"
+        run: .github/scripts/install-llvm.ts
       - name: Cache dependencies
         uses: Swatinem/rust-cache@82a92a6e8fbeee089604da2575dc567ae9ddeaab # v2.7.5
       - name: Test
