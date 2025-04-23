@@ -1,0 +1,31 @@
+name: "Setup tools"
+description: "Install LLVM and some other tools"
+
+inputs:
+  llvm-file-url:
+    description: "Pre-built archive URL (override when needed)"
+    required: false
+    default: "https://github.com/llvm/llvm-project/releases/download/llvmorg-18.1.8/clang+llvm-18.1.8-x86_64-linux-gnu-ubuntu-18.04.tar.xz"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install Tools
+      uses: jdx/mise-action@v2
+
+    - name: Restore LLVM cache
+      uses: actions/cache@v4
+      id: cache
+      with:
+        path: llvm
+        key: llvm-${{ runner.os }}-${{ inputs.llvm-file-url }}
+
+    - name: Install LLVM
+      if: steps.cache.outputs.cache-hit != 'true'
+      env:
+        LLVM_FILE_URL: ${{ inputs.llvm-file-url }}
+      shell: bash
+      run: .github/scripts/install-llvm.ts
+
+    - name: Cache dependencies
+      uses: Swatinem/rust-cache@82a92a6e8fbeee089604da2575dc567ae9ddeaab # v2.7.5
