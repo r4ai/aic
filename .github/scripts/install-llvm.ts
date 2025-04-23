@@ -92,21 +92,36 @@ const install_llvm = async (env: Env) => {
  * Setup LLVM for GitHub Actions
  */
 const setup_llvm = async (env: Env) => {
-  const githubPath = Deno.env.get("GITHUB_PATH");
-  if (githubPath) {
-    await Deno.writeTextFile(githubPath, `${env.destdir}/bin\n`, {
-      append: true,
-    });
-  }
+  await group(
+    "Add LLVM to PATH",
+    async () => {
+      const githubPath = Deno.env.get("GITHUB_PATH");
+      if (githubPath) {
+        await Deno.writeTextFile(githubPath, `${env.destdir}/bin\n`, {
+          append: true,
+        });
+      } else {
+        throw new Error(
+          "GITHUB_PATH is not set. This script must be run in GitHub Actions.",
+        );
+      }
+    },
+  );
 
-  const githubEnv = Deno.env.get("GITHUB_ENV");
-  if (githubEnv) {
-    await Deno.writeTextFile(
-      githubEnv,
-      `PKG_CONFIG_PATH=${env.destdir}/lib/pkgconfig\n`,
-      { append: true },
-    );
-  }
+  await group("Add LLVM to PKG_CONFIG_PATH", async () => {
+    const githubEnv = Deno.env.get("GITHUB_ENV");
+    if (githubEnv) {
+      await Deno.writeTextFile(
+        githubEnv,
+        `PKG_CONFIG_PATH=${env.destdir}/lib/pkgconfig\n`,
+        { append: true },
+      );
+    } else {
+      throw new Error(
+        "GITHUB_ENV is not set. This script must be run in GitHub Actions.",
+      );
+    }
+  });
 };
 
 const main = async () => {
