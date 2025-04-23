@@ -36,6 +36,14 @@ if (!URL) {
 }
 
 //------------------------------------------------------------
+// install prerequisites
+//------------------------------------------------------------
+await group("Install prerequisites", async () => {
+  await $`sudo apt-get -y update`;
+  await $`sudo apt-get -y install libtinfo5`;
+});
+
+//------------------------------------------------------------
 // installation steps
 //------------------------------------------------------------
 await group("Prepare directories", async () => {
