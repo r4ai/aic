@@ -69,11 +69,18 @@ cargo test
 
 ### Pre-requisites
 
-You can install the development dependencies using the `mise`:
+1. Install LLVM 18:
 
-```
-mise install
-```
+   ```sh
+   # For macOS or Linux, you can use Homebrew
+   brew install llvm@18
+   ```
+
+2. Install tools for development:
+
+   ```sh
+   mise install
+   ```
 
 ### Commands
 
