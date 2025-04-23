@@ -119,10 +119,6 @@ Then run the executable:
 | `mise tasks run format`       | Check the project formatting    |
 | `mise tasks run format-write` | Format and auto-fix the project |
 
-## Contributing
-
-Contributions welcome! See [`docs/roadmap.md`](docs/roadmap.md) for planned features and phases. Please open issues or PRs for bugs and improvements.
-
 [logos]: https://github.com/maciejhirsz/logos
 [chumsky]: https://github.com/zesterer/chumsky
 [Inkwell]: https://github.com/TheDan64/inkwell
