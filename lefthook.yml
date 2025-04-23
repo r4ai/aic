@@ -1,0 +1,14 @@
+# yaml-language-server: $schema=https://json.schemastore.org/lefthook.json
+
+pre-commit:
+  parallel: true
+  commands:
+    lint:
+      glob: "*.rs"
+      stage_fixed: true
+      run: mise tasks run lint-write && mise tasks run lint
+
+    format:
+      glob: "*.rs"
+      stage_fixed: true
+      run: mise tasks run format-write && mise tasks run format

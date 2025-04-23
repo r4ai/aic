@@ -59,7 +59,9 @@ where
             },
         );
 
-        let addition = multiplication.clone().foldl(
+        
+
+        multiplication.clone().foldl(
             choice((
                 just(Token::Add).to(ast::BinOp::Add),
                 just(Token::Sub).to(ast::BinOp::Sub),
@@ -71,9 +73,7 @@ where
                 op,
                 rhs: Box::new(rhs),
             },
-        );
-
-        addition
+        )
     });
 
     let statements = recursive(|statements| {
@@ -138,11 +138,11 @@ where
             })
     });
 
-    let program = statements
-        .then_ignore(end())
-        .map(|statements| ast::Program { statements });
+    
 
-    program
+    statements
+        .then_ignore(end())
+        .map(|statements| ast::Program { statements })
 }
 
 pub fn parse(src: &str) -> ParseResult<ast::Program, chumsky::error::Rich<'_, Token<'_>>> {

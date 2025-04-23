@@ -65,6 +65,27 @@ cargo run --release -- build src/main.aic -o out.ll --emit=llvm-ir
 cargo test
 ```
 
+## Development
+
+### Pre-requisites
+
+You can install the development dependencies using the `mise`:
+
+```
+mise install
+```
+
+### Commands
+
+| Command                       | Description                     |
+| ----------------------------- | ------------------------------- |
+| `mise tasks run build`        | Build the project               |
+| `mise tasks run test`         | Run tests                       |
+| `mise tasks run lint`         | Lint the project                |
+| `mise tasks run lint-write`   | Lint and auto-fix the project   |
+| `mise tasks run format`       | Check the project formatting    |
+| `mise tasks run format-write` | Format and auto-fix the project |
+
 ## Contributing
 
 Contributions welcome! See [`docs/roadmap.md`](docs/roadmap.md) for planned features and phases. Please open issues or PRs for bugs and improvements.

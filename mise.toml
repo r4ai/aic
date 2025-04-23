@@ -1,7 +1,11 @@
 [tools]
 "cargo:cargo-insta" = "1.42.2"
 clang = "18"
+lefthook = "latest"
 rust = "1.85.1"
+
+[hooks]
+postinstall = "lefthook install"
 
 [tasks.format]
 run = "cargo fmt --all -- --check"
