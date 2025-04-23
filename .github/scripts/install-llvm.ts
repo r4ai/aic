@@ -4,10 +4,9 @@
  * @fileoverview
  * LLVM installer for GitHub Actions
  *
- * - Downloads and extracts the archive below.
- * - Places the toolchain in <GITHUB_WORKSPACE>/llvm
- * - Appends <workspace>/llvm/bin to $GITHUB_PATH
- * - Appends PKG_CONFIG_PATH to $GITHUB_ENV
+ * Required environment variables:
+ * - `LLVM_FILE_URL`: URL to the LLVM tarball
+ * - `LLVM_SKIP_INSTALL`: Skip installation if set to true
  */
 
 import { $ } from "jsr:@david/dax";
