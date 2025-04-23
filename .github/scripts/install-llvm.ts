@@ -39,32 +39,34 @@ if (!URL) {
 // install prerequisites
 //------------------------------------------------------------
 await group("Install prerequisites", async () => {
-  await $`sudo apt-get -y update`;
+  await $`sudo apt-get -y update`.printCommand();
 
   // Install libtinfo5
   const deb = "libtinfo5_6.3-2ubuntu0.1_amd64.deb";
-  await $`wget -q http://security.ubuntu.com/ubuntu/pool/universe/n/ncurses/${deb}`;
-  await $`sudo dpkg -i ${deb}`;
+  await $`wget -q http://security.ubuntu.com/ubuntu/pool/universe/n/ncurses/${deb}`
+    .printCommand();
+  await $`sudo dpkg -i ${deb}`.printCommand();
 });
 
 //------------------------------------------------------------
 // installation steps
 //------------------------------------------------------------
 await group("Prepare directories", async () => {
-  await $`mkdir -p ${DESTDIR}`;
+  await $`mkdir -p ${DESTDIR}`.printCommand();
 });
 
 await group(`Download LLVM from '${URL}'`, async () => {
-  await $`curl -L --retry 3 -o llvm.tar.xz ${URL}`;
+  await $`curl -L --retry 3 -o llvm.tar.xz ${URL}`.printCommand();
 });
 
 await group("Extract & move", async () => {
-  await $`tar -xf llvm.tar.xz --strip-components=1 -C ${DESTDIR}`;
+  await $`tar -xvf llvm.tar.xz --strip-components=1 -C ${DESTDIR}`
+    .printCommand();
 });
 
 await group("Verify binaries", async () => {
-  await $`${DESTDIR}/bin/clang --version`;
-  await $`${DESTDIR}/bin/llvm-config --version`;
+  await $`${DESTDIR}/bin/clang --version`.printCommand();
+  await $`${DESTDIR}/bin/llvm-config --version`.printCommand();
 });
 
 //------------------------------------------------------------
