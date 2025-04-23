@@ -99,9 +99,7 @@ impl<'ctx> CodeGen<'ctx> {
                 }
 
                 // Generate implicit return
-                let has_return = body
-                    .iter()
-                    .any(|s| matches!(&s, ast::Stmt::Expr { .. }));
+                let has_return = body.iter().any(|s| matches!(&s, ast::Stmt::Expr { .. }));
                 if !has_return {
                     // If the function has no return statement, return void
                     self.builder

@@ -59,8 +59,6 @@ where
             },
         );
 
-        
-
         multiplication.clone().foldl(
             choice((
                 just(Token::Add).to(ast::BinOp::Add),
@@ -137,8 +135,6 @@ where
                 body
             })
     });
-
-    
 
     statements
         .then_ignore(end())
