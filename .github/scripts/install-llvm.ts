@@ -60,7 +60,7 @@ await group(`Download LLVM from '${URL}'`, async () => {
 });
 
 await group("Extract & move", async () => {
-  await $`tar -xvf llvm.tar.xz --strip-components=1 -C ${DESTDIR}`
+  await $`tar -xf llvm.tar.xz --strip-components=1 -C ${DESTDIR}`
     .printCommand();
 });
 
