@@ -130,7 +130,7 @@ where
             .then_ignore(just(Token::RParen));
 
         // "{" statements [ expr ] "}"
-        let function_body = just(Token::LBrace)
+        let block = just(Token::LBrace)
             .ignore_then(statements.clone())
             .then_ignore(just(Token::RBrace));
 
@@ -140,7 +140,7 @@ where
             .then(function_parameters)
             .then_ignore(just(Token::RightArrow))
             .then(r#type)
-            .then(function_body)
+            .then(block.clone())
             .map(|(((name, params), return_type), body)| ast::Stmt::FnDecl {
                 name,
                 params,
@@ -148,7 +148,23 @@ where
                 body,
             });
 
-        let statement = choice((let_declaration, function_declaration, expr_statement));
+        // "if" expr block [ "else" block ]
+        let if_statement = just(Token::If)
+            .ignore_then(expr.clone())
+            .then(block.clone())
+            .then(just(Token::Else).ignore_then(block).or_not())
+            .map(|((condition, then_branch), else_branch)| ast::Stmt::If {
+                condition: Box::new(condition),
+                then_branch,
+                else_branch,
+            });
+
+        let statement = choice((
+            let_declaration,
+            function_declaration,
+            expr_statement,
+            if_statement,
+        ));
 
         statement
             .repeated()
@@ -302,6 +318,46 @@ mod tests {
     #[test]
     fn test_parse_variable_declaration_without_value() {
         let input = "let x: i32;";
+        let result = parse(input);
+        assert!(has_no_errors(&result));
+
+        let program = result.into_result().unwrap();
+        assert_yaml_snapshot!(program);
+    }
+
+    #[test]
+    fn test_parse_if_statement() {
+        let input = "if 1 { 1 }";
+        let result = parse(input);
+        assert!(has_no_errors(&result));
+
+        let program = result.into_result().unwrap();
+        assert_yaml_snapshot!(program);
+    }
+
+    #[test]
+    fn test_parse_if_statement_with_else() {
+        let input = "if 1 { 1 } else { 2 }";
+        let result = parse(input);
+        assert!(has_no_errors(&result));
+
+        let program = result.into_result().unwrap();
+        assert_yaml_snapshot!(program);
+    }
+
+    #[test]
+    fn test_parse_if_statement_with_nested_else() {
+        let input = indoc! {"
+            if 1 {
+                if 2 {
+                    3
+                } else {
+                    4
+                }
+            } else {
+                5
+            }
+        "};
         let result = parse(input);
         assert!(has_no_errors(&result));
 

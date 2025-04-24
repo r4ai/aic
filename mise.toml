@@ -8,7 +8,7 @@ rust = "1.86.0"
 [hooks]
 postinstall = """\
   lefthook install && \
-  ln -s $(command -v mold) $(dirname $(command -v mold))/ld.mold\
+  ln -sf $(command -v mold) $(dirname $(command -v mold))/ld.mold\
   """
 
 [tasks.format]

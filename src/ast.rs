@@ -101,6 +101,16 @@ pub enum Stmt<'a> {
         value: Option<Expr<'a>>,
     },
 
+    /// An if statement
+    If {
+        /// The condition
+        condition: Box<Expr<'a>>,
+        /// The then branch
+        then_branch: Vec<Stmt<'a>>,
+        /// The else branch (optional)
+        else_branch: Option<Vec<Stmt<'a>>>,
+    },
+
     /// An expression statement
     #[allow(clippy::enum_variant_names)]
     ExprStmt {

@@ -10,6 +10,12 @@ pub enum Token<'a> {
     #[token("let")]
     LetDeclaration,
 
+    #[token("if")]
+    If,
+
+    #[token("else")]
+    Else,
+
     #[regex(r"[a-zA-Z_][a-zA-Z0-9_]*")]
     Identifier(&'a str),
 
@@ -62,6 +68,8 @@ impl std::fmt::Display for Token<'_> {
         match self {
             Self::FunctionDeclaration => write!(f, "fn"),
             Self::LetDeclaration => write!(f, "let"),
+            Self::If => write!(f, "if"),
+            Self::Else => write!(f, "else"),
             Self::Identifier(value) => write!(f, "{value}"),
             Self::Integer(value) => write!(f, "{value}"),
             Self::Add => write!(f, "+"),
@@ -78,7 +86,7 @@ impl std::fmt::Display for Token<'_> {
             Self::RightArrow => write!(f, "->"),
             Self::Assign => write!(f, "="),
             Self::Whitespace => write!(f, "<whitespace>"),
-            Self::Error => write!(f, "<error>"),
+            Self::Error => write!(f, "<e>"),
         }
     }
 }

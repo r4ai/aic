@@ -108,14 +108,22 @@ impl<'ctx> CodeGen<'ctx> {
 
     /// Generate LLVM IR for a program
     pub fn gen_program(&mut self, program: &'ctx ast::Program) -> Result<()> {
-        for stmt in &program.statements {
-            self.gen_stmt(stmt)?;
+        self.gen_block(&program.statements)
+    }
+
+    /// Generate LLVM IR for a block
+    pub fn gen_block(&mut self, stmts: &'ctx Vec<ast::Stmt>) -> Result<()> {
+        self.env.push_scope();
+        for (i, stmt) in stmts.iter().enumerate() {
+            let is_last_stmt = i == stmts.len() - 1;
+            self.gen_stmt(stmt, is_last_stmt)?;
         }
+        self.env.pop_scope();
         Ok(())
     }
 
     /// Generate LLVM IR for a statement
-    fn gen_stmt(&mut self, stmt: &'ctx ast::Stmt) -> Result<()> {
+    fn gen_stmt(&mut self, stmt: &'ctx ast::Stmt, is_last_stmt: bool) -> Result<()> {
         match stmt {
             ast::Stmt::FnDecl {
                 name,
@@ -124,9 +132,6 @@ impl<'ctx> CodeGen<'ctx> {
                 body,
             } => {
                 let initial_pos = self.builder.get_insert_block().unwrap();
-
-                // Push a new scope
-                self.env.push_scope();
 
                 // Create function type
                 let param_types: Vec<BasicMetadataTypeEnum> = params
@@ -163,9 +168,7 @@ impl<'ctx> CodeGen<'ctx> {
                 self.builder.position_at_end(basic_block);
 
                 // Generate code for the function body
-                for stmt in body.iter() {
-                    self.gen_stmt(stmt)?;
-                }
+                self.gen_block(body)?;
 
                 // Generate implicit return
                 let has_return = body.iter().any(|s| matches!(&s, ast::Stmt::Expr { .. }));
@@ -175,9 +178,6 @@ impl<'ctx> CodeGen<'ctx> {
                         .build_return(None)
                         .map_err(|e| anyhow::anyhow!("Failed to build return: {}", e))?;
                 }
-
-                // Pop the scope
-                self.env.pop_scope();
 
                 // Change the position of the builder back to the initial position
                 self.builder.position_at_end(initial_pos);
@@ -217,6 +217,106 @@ impl<'ctx> CodeGen<'ctx> {
                 self.env
                     .declare_var(name, value)
                     .map_err(|e| anyhow::anyhow!("Failed to declare variable '{}': {}", name, e))?;
+            }
+            ast::Stmt::If {
+                condition,
+                then_branch,
+                else_branch,
+            } => {
+                // Get the current function
+                let function = self
+                    .builder
+                    .get_insert_block()
+                    .unwrap()
+                    .get_parent()
+                    .unwrap();
+
+                // Create basic blocks for the if branches
+                let then_block = self.context.append_basic_block(function, "then");
+                let else_block = if else_branch.is_some() {
+                    Some(self.context.append_basic_block(function, "else"))
+                } else {
+                    None
+                };
+                let merge_block = self.context.append_basic_block(function, "ifcont");
+
+                // Generate condition code
+                let condition_value = self.gen_expr(condition)?;
+
+                // Convert the condition to i1 (boolean) type
+                let condition_value = if condition_value.is_int_value() {
+                    self.builder.build_int_compare(
+                        inkwell::IntPredicate::NE,
+                        condition_value.into_int_value(),
+                        self.context.i32_type().const_zero(),
+                        "ifcond",
+                    )?
+                } else {
+                    // Todo support other types
+                    bail!("Condition must be an i1 (boolean) value");
+                };
+
+                // Build the conditional branch
+                self.builder
+                    .build_conditional_branch(
+                        condition_value,
+                        then_block,
+                        if let Some(else_block) = else_block {
+                            else_block
+                        } else {
+                            merge_block
+                        },
+                    )
+                    .map_err(|e| anyhow::anyhow!("Failed to build conditional branch: {}", e))?;
+
+                // Generate 'then' branch code
+                self.builder.position_at_end(then_block);
+                self.gen_block(then_branch)?;
+
+                // Jump to the merge block if there's no terminator (like a return)
+                if self
+                    .builder
+                    .get_insert_block()
+                    .unwrap()
+                    .get_terminator()
+                    .is_none()
+                {
+                    self.builder
+                        .build_unconditional_branch(merge_block)
+                        .map_err(|e| {
+                            anyhow::anyhow!("Failed to build unconditional branch: {}", e)
+                        })?;
+                }
+
+                // Generate 'else' branch code if it exists
+                if let Some(else_branch) = else_branch {
+                    self.builder.position_at_end(else_block.unwrap());
+                    self.gen_block(else_branch)?;
+
+                    // Jump to the merge block if there's no terminator
+                    if self
+                        .builder
+                        .get_insert_block()
+                        .unwrap()
+                        .get_terminator()
+                        .is_none()
+                    {
+                        self.builder
+                            .build_unconditional_branch(merge_block)
+                            .map_err(|e| {
+                                anyhow::anyhow!("Failed to build unconditional branch: {}", e)
+                            })?;
+                    }
+                }
+
+                if is_last_stmt {
+                    merge_block.remove_from_function().map_err(|_| {
+                        anyhow::anyhow!("Failed to remove merge block from function")
+                    })?;
+                }
+
+                // Position the builder at the merge block
+                self.builder.position_at_end(merge_block);
             }
         }
         Ok(())

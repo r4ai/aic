@@ -101,9 +101,29 @@ fn test_let_and_var_aic() {
 }
 
 #[test]
-fn test_scopes_aic() {
-    let actual = compile_and_run_aic("tests/fixtures/scopes.aic").code;
-    let expected = 0;
+fn test_if_statement_aic() {
+    let actual = compile_and_run_aic("tests/fixtures/if_statement.aic").code;
+    let expected = 1;
+    assert_eq!(
+        actual, expected,
+        "exit code was {actual}, expected {expected}",
+    );
+}
+
+#[test]
+fn test_if_statement_else_aic() {
+    let actual = compile_and_run_aic("tests/fixtures/if_statement_else.aic").code;
+    let expected = 1;
+    assert_eq!(
+        actual, expected,
+        "exit code was {actual}, expected {expected}",
+    );
+}
+
+#[test]
+fn test_if_statement_nested_aic() {
+    let actual = compile_and_run_aic("tests/fixtures/if_statement_nested.aic").code;
+    let expected = 1;
     assert_eq!(
         actual, expected,
         "exit code was {actual}, expected {expected}",
