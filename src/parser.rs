@@ -148,16 +148,38 @@ where
                 body,
             });
 
-        // "if" expr block [ "else" block ]
-        let if_statement = just(Token::If)
-            .ignore_then(expr.clone())
-            .then(block.clone())
-            .then(just(Token::Else).ignore_then(block).or_not())
-            .map(|((condition, then_branch), else_branch)| ast::Stmt::If {
-                condition: Box::new(condition),
-                then_branch,
-                else_branch,
-            });
+        // "if" expr block [ "else" (if_stmt | block) ]
+        let if_statement = recursive(|if_stmt| {
+            just(Token::If)
+                .ignore_then(expr.clone())
+                .then(block.clone())
+                .then(
+                    just(Token::Else)
+                        .ignore_then(
+                            if_stmt
+                                .clone()
+                                .map(|stmt| match stmt {
+                                    ast::Stmt::If {
+                                        condition,
+                                        then_branch,
+                                        else_branch,
+                                    } => vec![ast::Stmt::If {
+                                        condition,
+                                        then_branch,
+                                        else_branch,
+                                    }],
+                                    _ => unreachable!(), // This will always be an If statement
+                                })
+                                .or(block.clone()),
+                        )
+                        .or_not(),
+                )
+                .map(|((condition, then_branch), else_branch)| ast::Stmt::If {
+                    condition: Box::new(condition),
+                    then_branch,
+                    else_branch,
+                })
+        });
 
         let statement = choice((
             let_declaration,
@@ -356,6 +378,26 @@ mod tests {
                 }
             } else {
                 5
+            }
+        "};
+        let result = parse(input);
+        assert!(has_no_errors(&result));
+
+        let program = result.into_result().unwrap();
+        assert_yaml_snapshot!(program);
+    }
+
+    #[test]
+    fn test_parse_if_statement_with_else_if_chain() {
+        let input = indoc! {"
+            if 1 {
+                1
+            } else if 2 {
+                2
+            } else if 3 {
+                3
+            } else {
+                4
             }
         "};
         let result = parse(input);

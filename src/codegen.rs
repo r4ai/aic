@@ -108,14 +108,14 @@ impl<'ctx> CodeGen<'ctx> {
 
     /// Generate LLVM IR for a program
     pub fn gen_program(&mut self, program: &'ctx ast::Program) -> Result<()> {
-        self.gen_block(&program.statements)
+        self.gen_block(&program.statements, true)
     }
 
     /// Generate LLVM IR for a block
-    pub fn gen_block(&mut self, stmts: &'ctx Vec<ast::Stmt>) -> Result<()> {
+    pub fn gen_block(&mut self, stmts: &'ctx Vec<ast::Stmt>, is_last_block: bool) -> Result<()> {
         self.env.push_scope();
         for (i, stmt) in stmts.iter().enumerate() {
-            let is_last_stmt = i == stmts.len() - 1;
+            let is_last_stmt = is_last_block && (i == stmts.len() - 1);
             self.gen_stmt(stmt, is_last_stmt)?;
         }
         self.env.pop_scope();
@@ -168,7 +168,7 @@ impl<'ctx> CodeGen<'ctx> {
                 self.builder.position_at_end(basic_block);
 
                 // Generate code for the function body
-                self.gen_block(body)?;
+                self.gen_block(body, is_last_stmt)?;
 
                 // Generate implicit return
                 let has_return = body.iter().any(|s| matches!(&s, ast::Stmt::Expr { .. }));
@@ -271,7 +271,7 @@ impl<'ctx> CodeGen<'ctx> {
 
                 // Generate 'then' branch code
                 self.builder.position_at_end(then_block);
-                self.gen_block(then_branch)?;
+                self.gen_block(then_branch, is_last_stmt)?;
 
                 // Jump to the merge block if there's no terminator (like a return)
                 if self
@@ -291,7 +291,7 @@ impl<'ctx> CodeGen<'ctx> {
                 // Generate 'else' branch code if it exists
                 if let Some(else_branch) = else_branch {
                     self.builder.position_at_end(else_block.unwrap());
-                    self.gen_block(else_branch)?;
+                    self.gen_block(else_branch, is_last_stmt)?;
 
                     // Jump to the merge block if there's no terminator
                     if self

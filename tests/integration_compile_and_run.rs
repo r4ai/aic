@@ -129,3 +129,23 @@ fn test_if_statement_nested_aic() {
         "exit code was {actual}, expected {expected}",
     );
 }
+
+#[test]
+fn test_if_statement_else_if_chain_aic() {
+    let actual = compile_and_run_aic("tests/fixtures/if_statement_else_if_chain.aic").code;
+    let expected = 2;
+    assert_eq!(
+        actual, expected,
+        "exit code was {actual}, expected {expected}",
+    );
+}
+
+#[test]
+fn test_if_statement_else_if_no_else_aic() {
+    let actual = compile_and_run_aic("tests/fixtures/if_statement_else_if_no_else.aic").code;
+    let expected = 3;
+    assert_eq!(
+        actual, expected,
+        "exit code was {actual}, expected {expected}",
+    );
+}
