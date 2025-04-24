@@ -12,6 +12,8 @@ runs:
   steps:
     - name: Install Tools
       uses: jdx/mise-action@v2
+      with:
+        experimental: true
 
     - name: Install LLVM
       env:
