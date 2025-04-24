@@ -6,7 +6,10 @@ mold = "2.37.1"
 rust = "1.85.1"
 
 [hooks]
-postinstall = "lefthook install"
+postinstall = """\
+  lefthook install && \
+  ln -s $(command -v mold) $(dirname $(command -v mold))/ld.mold\
+  """
 
 [tasks.format]
 run = "cargo fmt --all -- --check"
