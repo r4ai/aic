@@ -1,0 +1,88 @@
+fn test_boolean_literals() -> i32 {
+    let t = true;
+    let f = false;
+
+    if t {
+        if f {
+            return 0;
+        } else {
+            return 1;
+        }
+    } else {
+        return 0;
+    }
+}
+
+fn test_logical_operators() -> i32 {
+    let a = true && true;
+    let b = true && false;
+    let c = false && true;
+    let d = false && false;
+
+    let e = true || true;
+    let f = true || false;
+    let g = false || true;
+    let h = false || false;
+
+    if a && e && f && g && !b && !c && !d && !h {
+        return 2;
+    }
+
+    return 0;
+}
+
+fn test_comparison_operators() -> i32 {
+    let a = 10;
+    let b = 10;
+    let c = 20;
+
+    if !(a == b) {
+        return 0;
+    }
+
+    if !(a != c) {
+        return 0;
+    }
+
+    if !(a < c) {
+        return 0;
+    }
+
+    if !(c > a) {
+        return 0;
+    }
+
+    if !(a <= b) || !(a <= c) {
+        return 0;
+    }
+
+    if !(b >= a) || !(c >= a) {
+        return 0;
+    }
+
+    return 3;
+}
+
+fn run() -> i32 {
+    let result1 = test_boolean_literals();
+    let result2 = test_logical_operators();
+    let result3 = test_comparison_operators();
+
+    if result1 == 1 && result2 == 2 && result3 == 3 {
+        return 42;
+    }
+
+    if result1 != 1 {
+        return 1;
+    }
+    if result2 != 2 {
+        return 2;
+    }
+    if result3 != 3 {
+        return 3;
+    }
+
+    return 0;
+}
+
+run()

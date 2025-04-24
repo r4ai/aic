@@ -98,8 +98,11 @@ impl<'ctx> CodeGen<'ctx> {
 
         // Verify the module
         if self.module.verify().is_err() {
-            eprintln!("LLVM IR:\n {}\n", self.module.print_to_string().to_string());
-            eprintln!("Error message:\n {:?}\n", self.module.verify().unwrap_err());
+            eprintln!("LLVM IR:\n{}\n", self.module.print_to_string().to_string());
+            eprintln!(
+                "Error message:\n{}\n",
+                self.module.verify().unwrap_err().to_string()
+            );
             return Err(anyhow::anyhow!("Module verification failed"));
         }
 
@@ -168,20 +171,24 @@ impl<'ctx> CodeGen<'ctx> {
                 self.builder.position_at_end(basic_block);
 
                 // Generate code for the function body
-                self.gen_block(body, is_last_stmt)?;
-
-                // Generate implicit return
-                let has_return = body.iter().any(|s| matches!(&s, ast::Stmt::Expr { .. }));
-                if !has_return {
-                    // If the function has no return statement, return void
-                    self.builder
-                        .build_return(None)
-                        .map_err(|e| anyhow::anyhow!("Failed to build return: {}", e))?;
-                }
+                self.gen_block(body, true)?;
 
                 // Change the position of the builder back to the initial position
                 self.builder.position_at_end(initial_pos);
             }
+            ast::Stmt::Return { expr } => match expr {
+                Some(expr) => {
+                    let value = self.gen_expr(expr)?;
+                    self.builder
+                        .build_return(Some(&value))
+                        .map_err(|e| anyhow::anyhow!("Failed to build return: {}", e))?;
+                }
+                None => {
+                    self.builder
+                        .build_return(None)
+                        .map_err(|e| anyhow::anyhow!("Failed to build return: {}", e))?;
+                }
+            },
             ast::Stmt::ExprStmt { expr } => {
                 self.gen_expr(expr)?;
             }
@@ -245,12 +252,7 @@ impl<'ctx> CodeGen<'ctx> {
 
                 // Convert the condition to i1 (boolean) type
                 let condition_value = if condition_value.is_int_value() {
-                    self.builder.build_int_compare(
-                        inkwell::IntPredicate::NE,
-                        condition_value.into_int_value(),
-                        self.context.i32_type().const_zero(),
-                        "ifcond",
-                    )?
+                    condition_value.into_int_value()
                 } else {
                     // Todo support other types
                     bail!("Condition must be an i1 (boolean) value");
@@ -329,59 +331,162 @@ impl<'ctx> CodeGen<'ctx> {
                 let i32_type = self.context.i32_type();
                 Ok(i32_type.const_int(*value as u64, false).into())
             }
+            ast::Expr::BoolLit(value) => {
+                // Boolean literals (true/false) are represented as i1 (1-bit integer) in LLVM
+                let bool_type = self.context.bool_type();
+                let bool_value = if *value {
+                    bool_type.const_int(1, false)
+                } else {
+                    bool_type.const_zero()
+                };
+                Ok(bool_value.into())
+            }
             ast::Expr::BinOp { lhs, op, rhs } => {
                 let lhs = self.gen_expr(lhs)?;
                 let rhs = self.gen_expr(rhs)?;
 
-                if lhs.get_type() != rhs.get_type() {
-                    bail!("Type mismatch in binary operation");
-                }
-
-                if !lhs.is_int_value() || !rhs.is_int_value() {
-                    bail!("Binary operation only supports integer values");
-                }
-
-                let lhs = lhs.into_int_value();
-                let rhs = rhs.into_int_value();
-
+                // Handle comparison and logical operators
                 match op {
-                    ast::BinOp::Add => self
-                        .builder
-                        .build_int_add(lhs, rhs, "addtmp")
-                        .map_err(|e| anyhow::anyhow!("Failed to build add: {}", e))
-                        .map(|v| v.into()),
-                    ast::BinOp::Sub => self
-                        .builder
-                        .build_int_sub(lhs, rhs, "subtmp")
-                        .map_err(|e| anyhow::anyhow!("Failed to build sub: {}", e))
-                        .map(|v| v.into()),
-                    ast::BinOp::Mul => self
-                        .builder
-                        .build_int_mul(lhs, rhs, "multmp")
-                        .map_err(|e| anyhow::anyhow!("Failed to build mul: {}", e))
-                        .map(|v| v.into()),
-                    ast::BinOp::Div => self
-                        .builder
-                        .build_int_signed_div(lhs, rhs, "divtmp")
-                        .map_err(|e| anyhow::anyhow!("Failed to build div: {}", e))
-                        .map(|v| v.into()),
+                    // Equality operators
+                    ast::BinOp::Equal | ast::BinOp::NotEqual => {
+                        if lhs.get_type() != rhs.get_type() {
+                            bail!("Type mismatch in equality operation");
+                        }
+
+                        if lhs.is_int_value() && rhs.is_int_value() {
+                            let lhs_int = lhs.into_int_value();
+                            let rhs_int = rhs.into_int_value();
+                            let predicate = match op {
+                                ast::BinOp::Equal => inkwell::IntPredicate::EQ,
+                                ast::BinOp::NotEqual => inkwell::IntPredicate::NE,
+                                _ => unreachable!(),
+                            };
+                            self.builder
+                                .build_int_compare(predicate, lhs_int, rhs_int, "cmptmp")
+                                .map_err(|e| anyhow::anyhow!("Failed to build comparison: {}", e))
+                                .map(|v| v.into())
+                        } else {
+                            bail!("Equality operation only supports integer values for now");
+                        }
+                    }
+                    // Comparison operators
+                    ast::BinOp::LessThan
+                    | ast::BinOp::LessThanOrEqual
+                    | ast::BinOp::GreaterThan
+                    | ast::BinOp::GreaterThanOrEqual => {
+                        if lhs.get_type() != rhs.get_type() {
+                            bail!("Type mismatch in comparison operation");
+                        }
+
+                        if lhs.is_int_value() && rhs.is_int_value() {
+                            let lhs_int = lhs.into_int_value();
+                            let rhs_int = rhs.into_int_value();
+                            let predicate = match op {
+                                ast::BinOp::LessThan => inkwell::IntPredicate::SLT,
+                                ast::BinOp::LessThanOrEqual => inkwell::IntPredicate::SLE,
+                                ast::BinOp::GreaterThan => inkwell::IntPredicate::SGT,
+                                ast::BinOp::GreaterThanOrEqual => inkwell::IntPredicate::SGE,
+                                _ => unreachable!(),
+                            };
+                            self.builder
+                                .build_int_compare(predicate, lhs_int, rhs_int, "cmptmp")
+                                .map_err(|e| anyhow::anyhow!("Failed to build comparison: {}", e))
+                                .map(|v| v.into())
+                        } else {
+                            bail!("Comparison operation only supports integer values for now");
+                        }
+                    }
+                    // Logical operators
+                    ast::BinOp::And | ast::BinOp::Or => {
+                        if !lhs.is_int_value() || !rhs.is_int_value() {
+                            bail!("Logical operation only supports boolean values");
+                        }
+
+                        let lhs_int = lhs.into_int_value();
+                        let rhs_int = rhs.into_int_value();
+
+                        // Handle logical operations
+                        match op {
+                            ast::BinOp::And => self
+                                .builder
+                                .build_and(lhs_int, rhs_int, "andtmp")
+                                .map_err(|e| anyhow::anyhow!("Failed to build AND: {}", e))
+                                .map(|v| v.into()),
+                            ast::BinOp::Or => self
+                                .builder
+                                .build_or(lhs_int, rhs_int, "ortmp")
+                                .map_err(|e| anyhow::anyhow!("Failed to build OR: {}", e))
+                                .map(|v| v.into()),
+                            _ => unreachable!(),
+                        }
+                    }
+                    // Arithmetic operators
+                    _ => {
+                        if lhs.get_type() != rhs.get_type() {
+                            bail!("Type mismatch in binary operation");
+                        }
+
+                        if !lhs.is_int_value() || !rhs.is_int_value() {
+                            bail!("Binary operation only supports integer values");
+                        }
+
+                        let lhs = lhs.into_int_value();
+                        let rhs = rhs.into_int_value();
+
+                        match op {
+                            ast::BinOp::Add => self
+                                .builder
+                                .build_int_add(lhs, rhs, "addtmp")
+                                .map_err(|e| anyhow::anyhow!("Failed to build add: {}", e))
+                                .map(|v| v.into()),
+                            ast::BinOp::Sub => self
+                                .builder
+                                .build_int_sub(lhs, rhs, "subtmp")
+                                .map_err(|e| anyhow::anyhow!("Failed to build sub: {}", e))
+                                .map(|v| v.into()),
+                            ast::BinOp::Mul => self
+                                .builder
+                                .build_int_mul(lhs, rhs, "multmp")
+                                .map_err(|e| anyhow::anyhow!("Failed to build mul: {}", e))
+                                .map(|v| v.into()),
+                            ast::BinOp::Div => self
+                                .builder
+                                .build_int_signed_div(lhs, rhs, "divtmp")
+                                .map_err(|e| anyhow::anyhow!("Failed to build div: {}", e))
+                                .map(|v| v.into()),
+                            _ => unreachable!(),
+                        }
+                    }
                 }
             }
-            ast::Expr::UnaryOp {
-                op: ast::UnaryOp::Neg,
-                expr,
-            } => {
+            ast::Expr::UnaryOp { op, expr } => {
                 let value = self.gen_expr(expr)?;
-                if !value.is_int_value() {
-                    bail!("Unary negation only supports integer values");
-                }
-                let value = value.into_int_value();
 
-                let zero = self.context.i32_type().const_int(0, false);
-                self.builder
-                    .build_int_sub(zero, value, "negtmp")
-                    .map_err(|e| anyhow::anyhow!("Failed to build negation: {}", e))
-                    .map(|v| v.into())
+                match op {
+                    ast::UnaryOp::Neg => {
+                        if !value.is_int_value() {
+                            bail!("Unary negation only supports integer values");
+                        }
+                        let value = value.into_int_value();
+
+                        let zero = self.context.i32_type().const_int(0, false);
+                        self.builder
+                            .build_int_sub(zero, value, "negtmp")
+                            .map_err(|e| anyhow::anyhow!("Failed to build negation: {}", e))
+                            .map(|v| v.into())
+                    }
+                    ast::UnaryOp::Not => {
+                        if !value.is_int_value() {
+                            bail!("Logical NOT only supports boolean values");
+                        }
+                        let value = value.into_int_value();
+
+                        self.builder
+                            .build_not(value, "nottmp")
+                            .map_err(|e| anyhow::anyhow!("Failed to build logical NOT: {}", e))
+                            .map(|v| v.into())
+                    }
+                }
             }
             ast::Expr::FnCall { name, args } => {
                 // Look up the function by name

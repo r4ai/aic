@@ -10,6 +10,9 @@ pub enum Token<'a> {
     #[token("let")]
     LetDeclaration,
 
+    #[token("return")]
+    Return,
+
     #[token("if")]
     If,
 
@@ -33,6 +36,33 @@ pub enum Token<'a> {
 
     #[token("/")]
     Div,
+
+    #[token("==")]
+    Equal,
+
+    #[token("!=")]
+    NotEqual,
+
+    #[token("<")]
+    LessThan,
+
+    #[token("<=")]
+    LessThanOrEqual,
+
+    #[token(">")]
+    GreaterThan,
+
+    #[token(">=")]
+    GreaterThanOrEqual,
+
+    #[token("&&")]
+    And,
+
+    #[token("||")]
+    Or,
+
+    #[token("!")]
+    Not,
 
     #[token(",")]
     Comma,
@@ -68,6 +98,7 @@ impl std::fmt::Display for Token<'_> {
         match self {
             Self::FunctionDeclaration => write!(f, "fn"),
             Self::LetDeclaration => write!(f, "let"),
+            Self::Return => write!(f, "return"),
             Self::If => write!(f, "if"),
             Self::Else => write!(f, "else"),
             Self::Identifier(value) => write!(f, "{value}"),
@@ -76,6 +107,15 @@ impl std::fmt::Display for Token<'_> {
             Self::Sub => write!(f, "-"),
             Self::Mul => write!(f, "*"),
             Self::Div => write!(f, "/"),
+            Self::Equal => write!(f, "=="),
+            Self::NotEqual => write!(f, "!="),
+            Self::LessThan => write!(f, "<"),
+            Self::LessThanOrEqual => write!(f, "<="),
+            Self::GreaterThan => write!(f, ">"),
+            Self::GreaterThanOrEqual => write!(f, ">="),
+            Self::And => write!(f, "&&"),
+            Self::Or => write!(f, "||"),
+            Self::Not => write!(f, "!"),
             Self::Comma => write!(f, ","),
             Self::Colon => write!(f, ":"),
             Self::Semicolon => write!(f, ";"),

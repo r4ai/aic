@@ -149,3 +149,13 @@ fn test_if_statement_else_if_no_else_aic() {
         "exit code was {actual}, expected {expected}",
     );
 }
+
+#[test]
+fn test_boolean_and_comparison_aic() {
+    let actual = compile_and_run_aic("tests/fixtures/boolean_and_comparison.aic").code;
+    let expected = 42;
+    assert_eq!(
+        actual, expected,
+        "exit code was {actual}, expected {expected}",
+    );
+}

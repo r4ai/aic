@@ -20,9 +20,13 @@ where
         Token::Identifier(value) if value == "string" => ast::Type::String,
     };
 
+    // The operator precedence and associativity are designed to match C++ according to:
+    // https://www.ibm.com/docs/en/i/7.3.0?topic=operators-operator-precedence-associativity
     let expr = recursive(|expr| {
         let literal = select! {
-            Token::Integer(value) => ast::Expr::IntLit(value.parse().unwrap())
+            Token::Integer(value) => ast::Expr::IntLit(value.parse().unwrap()),
+            Token::Identifier(ident) if ident == "true" => ast::Expr::BoolLit(true),
+            Token::Identifier(ident) if ident == "false" => ast::Expr::BoolLit(false),
         };
 
         // variable reference (identifier as expression)
@@ -43,10 +47,10 @@ where
         let primary = choice((
             // function call
             function_call,
-            // variable reference
-            var_ref,
             // literal
             literal,
+            // variable reference
+            var_ref,
             // "(" expr ")"
             expr.clone()
                 .delimited_by(just(Token::LParen), just(Token::RParen)),
@@ -60,10 +64,18 @@ where
                     op: ast::UnaryOp::Neg,
                     expr: Box::new(expr),
                 }),
+            // "!" primary
+            just(Token::Not)
+                .ignore_then(primary.clone())
+                .map(|expr| ast::Expr::UnaryOp {
+                    op: ast::UnaryOp::Not,
+                    expr: Box::new(expr),
+                }),
             // primary
             primary,
         ));
 
+        // unary { ("*" | "/") unary }
         let multiplication = unary.clone().foldl(
             choice((
                 just(Token::Mul).to(ast::BinOp::Mul),
@@ -78,19 +90,88 @@ where
             },
         );
 
-        multiplication.clone().foldl(
+        // multiplication { ("+" | "-") multiplication }
+        let addition = multiplication
+            .clone()
+            .foldl(
+                choice((
+                    just(Token::Add).to(ast::BinOp::Add),
+                    just(Token::Sub).to(ast::BinOp::Sub),
+                ))
+                .then(multiplication)
+                .repeated(),
+                |lhs, (op, rhs)| ast::Expr::BinOp {
+                    lhs: Box::new(lhs),
+                    op,
+                    rhs: Box::new(rhs),
+                },
+            )
+            .boxed();
+
+        // addition { ("<" | "<=" | ">" | ">=") addition }
+        let comparison = addition.clone().foldl(
             choice((
-                just(Token::Add).to(ast::BinOp::Add),
-                just(Token::Sub).to(ast::BinOp::Sub),
+                just(Token::Equal).to(ast::BinOp::Equal),
+                just(Token::NotEqual).to(ast::BinOp::NotEqual),
+                just(Token::LessThan).to(ast::BinOp::LessThan),
+                just(Token::LessThanOrEqual).to(ast::BinOp::LessThanOrEqual),
+                just(Token::GreaterThan).to(ast::BinOp::GreaterThan),
+                just(Token::GreaterThanOrEqual).to(ast::BinOp::GreaterThanOrEqual),
             ))
-            .then(multiplication)
+            .then(addition)
             .repeated(),
             |lhs, (op, rhs)| ast::Expr::BinOp {
                 lhs: Box::new(lhs),
                 op,
                 rhs: Box::new(rhs),
             },
-        )
+        );
+
+        // comparison { ("==" | "!=") comparison }
+        let equality = comparison
+            .clone()
+            .foldl(
+                choice((
+                    just(Token::Equal).to(ast::BinOp::Equal),
+                    just(Token::NotEqual).to(ast::BinOp::NotEqual),
+                ))
+                .then(comparison)
+                .repeated(),
+                |lhs, (op, rhs)| ast::Expr::BinOp {
+                    lhs: Box::new(lhs),
+                    op,
+                    rhs: Box::new(rhs),
+                },
+            )
+            .boxed();
+
+        // equality { "&&" equality }
+        let logical_and = equality.clone().foldl(
+            just(Token::And)
+                .to(ast::BinOp::And)
+                .then(equality)
+                .repeated(),
+            |lhs, (op, rhs)| ast::Expr::BinOp {
+                lhs: Box::new(lhs),
+                op,
+                rhs: Box::new(rhs),
+            },
+        );
+
+        // logical_and { "||" logical_and }
+        let logical_or = logical_and.clone().foldl(
+            just(Token::Or)
+                .to(ast::BinOp::Or)
+                .then(logical_and)
+                .repeated(),
+            |lhs, (op, rhs)| ast::Expr::BinOp {
+                lhs: Box::new(lhs),
+                op,
+                rhs: Box::new(rhs),
+            },
+        );
+
+        logical_or
     });
 
     let statements = recursive(|statements| {
@@ -112,6 +193,14 @@ where
                 name,
                 r#type: ty,
                 value,
+            });
+
+        // "return" [ expr ] ";"
+        let return_statement = just(Token::Return)
+            .ignore_then(expr.clone().or_not())
+            .then_ignore(just(Token::Semicolon))
+            .map(|expr| ast::Stmt::Return {
+                expr: expr.map(Box::new),
             });
 
         // identifier ":" type
@@ -183,6 +272,7 @@ where
 
         let statement = choice((
             let_declaration,
+            return_statement,
             function_declaration,
             expr_statement,
             if_statement,

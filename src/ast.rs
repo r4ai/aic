@@ -5,6 +5,8 @@ use serde::Serialize;
 pub enum Expr<'a> {
     /// An integer literal
     IntLit(i64),
+    /// A boolean literal
+    BoolLit(bool),
     /// A binary operation
     BinOp {
         /// The left-hand side expression
@@ -46,6 +48,22 @@ pub enum BinOp {
     Mul,
     /// Division (/)
     Div,
+    /// Equality (==)
+    Equal,
+    /// Inequality (!=)
+    NotEqual,
+    /// Less than (<)
+    LessThan,
+    /// Less than or equal (<=)
+    LessThanOrEqual,
+    /// Greater than (>)
+    GreaterThan,
+    /// Greater than or equal (>=)
+    GreaterThanOrEqual,
+    /// Logical AND (&&)
+    And,
+    /// Logical OR (||)
+    Or,
 }
 
 /// Unary operator
@@ -53,6 +71,8 @@ pub enum BinOp {
 pub enum UnaryOp {
     /// Negation (-)
     Neg,
+    /// Logical NOT (!)
+    Not,
 }
 
 /// Type
@@ -109,6 +129,12 @@ pub enum Stmt<'a> {
         then_branch: Vec<Stmt<'a>>,
         /// The else branch (optional)
         else_branch: Option<Vec<Stmt<'a>>>,
+    },
+
+    /// A return statement
+    Return {
+        /// The expression to return (optional)
+        expr: Option<Box<Expr<'a>>>,
     },
 
     /// An expression statement
