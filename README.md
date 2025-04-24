@@ -30,13 +30,13 @@ Detailed multi‑phase roadmap in [`docs/roadmap.md`](docs/roadmap.md):
 
 ### Prerequisites
 
-- Rust ≥ 1.60
-- LLVM development libraries (refer to [Inkwell] documentation for specific requirements based on your OS)
-  ```bash
-  # Example for Ubuntu/Debian:
-  # sudo apt-get install llvm-dev libclang-dev clang
+- Rust ≥ 1.86.0
+- LLVM 18
+
   ```
-- (Optional) [lld] for linking, or use the system linker.
+  # For macOS or Linux, you can use Homebrew
+  brew install llvm@18
+  ```
 
 ### Build
 
@@ -44,23 +44,24 @@ Detailed multi‑phase roadmap in [`docs/roadmap.md`](docs/roadmap.md):
 cargo build --release
 ```
 
-### Compile to Executable or LLVM IR
+### Compile to LLVM IR
 
 After building, you can compile an AIC source file using the following CLI options:
 
 ```
-USAGE:
-    aic --input <INPUT> [--output <OUTPUT>] [--emit-llvm]
+Usage: aic [OPTIONS] --input <INPUT>
 
-FLAGS:
-    -i, --input <INPUT>      Input file to compile (required)
-    -o, --output <OUTPUT>    Output file (optional; defaults to <input>.o or prints IR to stdout)
-        --emit-llvm          Emit LLVM IR instead of an object file
+Options:
+  -i, --input <INPUT>    Input file to compile
+  -o, --output <OUTPUT>  Output file
+      --emit-llvm        Emit LLVM IR instead of an object file
+  -h, --help             Print help
+  -V, --version          Print version
 ```
 
 #### Examples
 
-- Compile to an object file (default output is <input>.o):
+- Compile to an object file:
 
   ```bash
   cargo run --release -- --input src/main.aic
@@ -79,7 +80,7 @@ FLAGS:
 
 ### Run
 
-After compiling to an llvm object file, you can compile it to an executable using clang:
+After compiling to a llvm object file, you can compile it to an executable using clang:
 
 ```bash
 clang -o a.out main.o
