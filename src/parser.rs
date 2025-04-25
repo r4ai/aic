@@ -159,6 +159,7 @@ where
         );
 
         // logical_and { "||" logical_and }
+        #[allow(clippy::let_and_return)]
         let logical_or = logical_and.clone().foldl(
             just(Token::Or)
                 .to(ast::BinOp::Or)
