@@ -190,10 +190,32 @@ where
             .then(just(Token::Colon).ignore_then(r#type).or_not())
             .then(just(Token::Assign).ignore_then(expr.clone()).or_not())
             .then_ignore(just(Token::Semicolon))
+            .map(|((name, ty), value)| ast::Stmt::LetDecl {
+                name,
+                r#type: ty,
+                value,
+            });
+
+        // "var" identifier [":" type] ["=" expr] ";"
+        let var_declaration = just(Token::VarDeclaration)
+            .ignore_then(identifier)
+            .then(just(Token::Colon).ignore_then(r#type).or_not())
+            .then(just(Token::Assign).ignore_then(expr.clone()).or_not())
+            .then_ignore(just(Token::Semicolon))
             .map(|((name, ty), value)| ast::Stmt::VarDecl {
                 name,
                 r#type: ty,
                 value,
+            });
+
+        // identifier "=" expr ";"
+        let assignment = identifier
+            .then_ignore(just(Token::Assign))
+            .then(expr.clone())
+            .then_ignore(just(Token::Semicolon))
+            .map(|(name, value)| ast::Stmt::Assign {
+                name,
+                value: Box::new(value),
             });
 
         // "return" [ expr ] ";"
@@ -273,6 +295,8 @@ where
 
         let statement = choice((
             let_declaration,
+            var_declaration,
+            assignment,
             return_statement,
             function_declaration,
             expr_statement,
@@ -431,6 +455,46 @@ mod tests {
     #[test]
     fn test_parse_variable_declaration_without_value() {
         let input = "let x: i32;";
+        let result = parse(input);
+        assert!(has_no_errors(&result));
+
+        let program = result.into_result().unwrap();
+        assert_yaml_snapshot!(program);
+    }
+
+    #[test]
+    fn test_parse_mutable_variable_declaration() {
+        let input = "var x: i32 = 42;";
+        let result = parse(input);
+        assert!(has_no_errors(&result));
+
+        let program = result.into_result().unwrap();
+        assert_yaml_snapshot!(program);
+    }
+
+    #[test]
+    fn test_parse_mutable_variable_declaration_without_type() {
+        let input = "var x = 42;";
+        let result = parse(input);
+        assert!(has_no_errors(&result));
+
+        let program = result.into_result().unwrap();
+        assert_yaml_snapshot!(program);
+    }
+
+    #[test]
+    fn test_parse_mutable_variable_declaration_without_value() {
+        let input = "var x: i32;";
+        let result = parse(input);
+        assert!(has_no_errors(&result));
+
+        let program = result.into_result().unwrap();
+        assert_yaml_snapshot!(program);
+    }
+
+    #[test]
+    fn test_parse_assignment() {
+        let input = "x = 42;";
         let result = parse(input);
         assert!(has_no_errors(&result));
 

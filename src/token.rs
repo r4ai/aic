@@ -10,6 +10,9 @@ pub enum Token<'a> {
     #[token("let")]
     LetDeclaration,
 
+    #[token("var")]
+    VarDeclaration,
+
     #[token("return")]
     Return,
 
@@ -106,6 +109,7 @@ impl std::fmt::Display for Token<'_> {
         match self {
             Self::FunctionDeclaration => write!(f, "fn"),
             Self::LetDeclaration => write!(f, "let"),
+            Self::VarDeclaration => write!(f, "var"),
             Self::Return => write!(f, "return"),
             Self::If => write!(f, "if"),
             Self::Else => write!(f, "else"),

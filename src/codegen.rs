@@ -6,14 +6,20 @@ use inkwell::{
     context::Context,
     module::Module,
     targets::{CodeModel, InitializationConfig, RelocMode, Target, TargetMachine},
-    types::BasicMetadataTypeEnum,
-    values::BasicValueEnum,
+    types::{BasicMetadataTypeEnum, BasicType, BasicTypeEnum}, // Import BasicType trait
+    values::{BasicValueEnum, PointerValue},
 };
 
 use crate::ast;
 
+struct VariableInfo<'ctx> {
+    ptr: PointerValue<'ctx>,
+    ty: BasicTypeEnum<'ctx>, // Store the type of the variable
+    is_mutable: bool,
+}
+
 pub struct Env<'ctx> {
-    scopes: Vec<HashMap<&'ctx str, Option<inkwell::values::BasicValueEnum<'ctx>>>>,
+    scopes: Vec<HashMap<&'ctx str, VariableInfo<'ctx>>>,
 }
 
 impl<'ctx> Env<'ctx> {
@@ -34,28 +40,33 @@ impl<'ctx> Env<'ctx> {
     fn declare_var(
         &mut self,
         name: &'ctx str,
-        value: inkwell::values::BasicValueEnum<'ctx>,
+        ptr: PointerValue<'ctx>,
+        ty: BasicTypeEnum<'ctx>, // Add type parameter
+        is_mutable: bool,
     ) -> Result<()> {
         if self
             .scopes
             .last_mut()
             .unwrap()
-            .insert(name, Some(value))
+            .insert(
+                name,
+                VariableInfo {
+                    ptr,
+                    ty,
+                    is_mutable,
+                },
+            ) // Store the type
             .is_some()
         {
-            bail!("Variable '{}' already declared", name);
+            bail!("Variable '{}' already declared in this scope", name);
         }
         Ok(())
     }
 
-    fn resolve_var(&self, name: &'ctx str) -> Result<inkwell::values::BasicValueEnum<'ctx>> {
+    fn resolve_var(&self, name: &'ctx str) -> Result<&VariableInfo<'ctx>> {
         for scope in self.scopes.iter().rev() {
-            if let Some(value) = scope.get(name) {
-                if let Some(value) = value {
-                    return Ok(*value);
-                } else {
-                    bail!("Variable '{}' is not initialized", name);
-                }
+            if let Some(var_info) = scope.get(name) {
+                return Ok(var_info);
             }
         }
         bail!("Variable '{}' not found", name);
@@ -139,39 +150,45 @@ impl<'ctx> CodeGen<'ctx> {
                 // Create function type
                 let param_types: Vec<BasicMetadataTypeEnum> = params
                     .iter()
-                    .map(|param| match param.r#type {
-                        ast::Type::Void => bail!("Void type not allowed in function parameters"),
-                        ast::Type::String => todo!("String type not implemented"),
-                        ast::Type::I32 => Ok(self.context.i32_type().into()),
-                        ast::Type::I64 => Ok(self.context.i64_type().into()),
-                        ast::Type::F32 => Ok(self.context.f32_type().into()),
-                        ast::Type::F64 => Ok(self.context.f64_type().into()),
-                    })
+                    .map(|param| self.map_ast_type_to_llvm(param.r#type).map(|t| t.into()))
                     .collect::<Result<Vec<_>, _>>()?;
-                let fn_type = match r#type {
-                    ast::Type::Void => self.context.void_type().fn_type(&param_types, false),
-                    ast::Type::String => todo!("String type not implemented"),
-                    ast::Type::I32 => self.context.i32_type().fn_type(&param_types, false),
-                    ast::Type::I64 => self.context.i64_type().fn_type(&param_types, false),
-                    ast::Type::F32 => self.context.f32_type().fn_type(&param_types, false),
-                    ast::Type::F64 => self.context.f64_type().fn_type(&param_types, false),
-                };
-                let function = self.module.add_function(name, fn_type, None);
 
-                // Set the function parameters
-                for (i, param) in function.get_param_iter().enumerate() {
-                    let name = params[i].name;
-                    self.env.declare_var(name, param).map_err(|e| {
-                        anyhow::anyhow!("Failed to declare parameter '{}': {}", name, e)
-                    })?;
-                }
+                let fn_type = match self.map_ast_type_to_llvm(*r#type) {
+                    Ok(ty) => ty.fn_type(&param_types, false),
+                    Err(_) if *r#type == ast::Type::Void => {
+                        self.context.void_type().fn_type(&param_types, false)
+                    }
+                    Err(e) => return Err(e),
+                };
+
+                let function = self.module.add_function(name, fn_type, None);
 
                 // Create basic block for the function
                 let basic_block = self.context.append_basic_block(function, "entry");
                 self.builder.position_at_end(basic_block);
 
+                // Allocate space for parameters and store initial values
+                self.env.push_scope(); // Push scope for function parameters
+                for (i, param) in function.get_param_iter().enumerate() {
+                    let ast_param = &params[i];
+                    let param_type = self.map_ast_type_to_llvm(ast_param.r#type)?;
+                    let alloca = self.builder.build_alloca(param_type, ast_param.name)?;
+                    self.builder.build_store(alloca, param)?;
+                    self.env
+                        .declare_var(ast_param.name, alloca, param_type, false) // Pass param_type
+                        .map_err(|e| {
+                            anyhow::anyhow!(
+                                "Failed to declare parameter '{}': {}",
+                                ast_param.name,
+                                e
+                            )
+                        })?;
+                }
+
                 // Generate code for the function body
                 self.gen_block(body, true)?;
+
+                self.env.pop_scope(); // Pop scope for function parameters
 
                 // Change the position of the builder back to the initial position
                 self.builder.position_at_end(initial_pos);
@@ -201,29 +218,80 @@ impl<'ctx> CodeGen<'ctx> {
                     .build_return(Some(&value))
                     .map_err(|e| anyhow::anyhow!("Failed to build return: {}", e))?;
             }
+            ast::Stmt::LetDecl {
+                name,
+                r#type,
+                value,
+            } => {
+                let initial_value = if let Some(val_expr) = value {
+                    self.gen_expr(val_expr)?
+                } else {
+                    bail!("Initial value required for let declaration");
+                };
+
+                let var_type = initial_value.get_type();
+                if let Some(ty) = r#type {
+                    let llvm_type = self.map_ast_type_to_llvm(*ty)?;
+                    if var_type != llvm_type {
+                        bail!(
+                            "Type mismatch in let declaration: expected {:?}, found {:?}",
+                            llvm_type,
+                            var_type
+                        );
+                    }
+                }
+
+                let ptr = self.builder.build_alloca(var_type, name)?;
+                self.builder.build_store(ptr, initial_value)?;
+
+                // Declare the immutable variable in the current scope
+                self.env
+                    .declare_var(name, ptr, var_type, false) // Pass var_type
+                    .map_err(|e| anyhow::anyhow!("Failed to declare variable '{}': {}", name, e))?;
+            }
             ast::Stmt::VarDecl {
                 name,
                 r#type,
                 value,
             } => {
-                // Generate code for the variable declaration
-                let value: BasicValueEnum = if let Some(value) = value {
-                    self.gen_expr(value)?
+                let initial_value = if let Some(val_expr) = value {
+                    self.gen_expr(val_expr)?
                 } else {
-                    // If no value is provided, use a default value
-                    match r#type {
-                        Some(ast::Type::I32) => self.context.i32_type().const_zero().into(),
-                        Some(ast::Type::I64) => self.context.i64_type().const_zero().into(),
-                        Some(ast::Type::F32) => self.context.f32_type().const_zero().into(),
-                        Some(ast::Type::F64) => self.context.f64_type().const_zero().into(),
-                        _ => bail!("Unsupported type for variable declaration"),
-                    }
+                    // Determine type and get default value if no initial value provided
+                    let ty = r#type.ok_or_else(|| {
+                        anyhow::anyhow!(
+                            "Type annotation required for var declaration without initializer"
+                        )
+                    })?;
+                    self.get_default_value(ty)?
                 };
 
-                // Declare the variable in the current scope
+                let var_type = initial_value.get_type();
+                let ptr = self.builder.build_alloca(var_type, name)?;
+                self.builder.build_store(ptr, initial_value)?;
+
+                // Declare the mutable variable in the current scope
                 self.env
-                    .declare_var(name, value)
+                    .declare_var(name, ptr, var_type, true) // Pass var_type
                     .map_err(|e| anyhow::anyhow!("Failed to declare variable '{}': {}", name, e))?;
+            }
+            ast::Stmt::Assign { name, value } => {
+                let new_value = self.gen_expr(value)?;
+                let var_info = self.env.resolve_var(name)?;
+
+                if !var_info.is_mutable {
+                    bail!("Cannot assign to immutable variable '{}'", name);
+                }
+
+                // Load the existing value's type to ensure type match
+                let current_value =
+                    self.builder
+                        .build_load(var_info.ty, var_info.ptr, "loadtmp")?; // Use stored type
+                if new_value.get_type() != current_value.get_type() {
+                    bail!("Type mismatch in assignment to variable '{}'", name);
+                }
+
+                self.builder.build_store(var_info.ptr, new_value)?;
             }
             ast::Stmt::If {
                 condition,
@@ -511,12 +579,38 @@ impl<'ctx> CodeGen<'ctx> {
             }
             ast::Expr::VarRef { name } => {
                 // Look up the variable by name
-                let value = self
+                let var_info = self
                     .env
                     .resolve_var(name)
                     .map_err(|e| anyhow::anyhow!("Variable '{}' not found: {}", name, e))?;
-                Ok(value)
+                // Load the value from the pointer
+                self.builder
+                    .build_load(var_info.ty, var_info.ptr, name) // Use stored type
+                    .map_err(|e| anyhow::anyhow!("Failed to load variable '{}': {}", name, e))
             }
+        }
+    }
+
+    /// Map AST type to LLVM type
+    fn map_ast_type_to_llvm(&self, ty: ast::Type) -> Result<BasicTypeEnum<'ctx>> {
+        match ty {
+            ast::Type::I32 => Ok(self.context.i32_type().into()),
+            ast::Type::I64 => Ok(self.context.i64_type().into()),
+            ast::Type::F32 => Ok(self.context.f32_type().into()),
+            ast::Type::F64 => Ok(self.context.f64_type().into()),
+            ast::Type::Void => bail!("Void type cannot be used directly as a variable type"),
+            ast::Type::String => bail!("String type not implemented"),
+        }
+    }
+
+    /// Get default value for a given AST type
+    fn get_default_value(&self, ty: ast::Type) -> Result<BasicValueEnum<'ctx>> {
+        match ty {
+            ast::Type::I32 => Ok(self.context.i32_type().const_zero().into()),
+            ast::Type::I64 => Ok(self.context.i64_type().const_zero().into()),
+            ast::Type::F32 => Ok(self.context.f32_type().const_zero().into()),
+            ast::Type::F64 => Ok(self.context.f64_type().const_zero().into()),
+            _ => bail!("Unsupported type for default value: {:?}", ty),
         }
     }
 

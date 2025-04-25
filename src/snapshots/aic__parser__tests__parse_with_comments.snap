@@ -8,12 +8,12 @@ statements:
       params: []
       type: I32
       body:
-        - VarDecl:
+        - LetDecl:
             name: a
             type: I32
             value:
               IntLit: 10
-        - VarDecl:
+        - LetDecl:
             name: b
             type: I32
             value:

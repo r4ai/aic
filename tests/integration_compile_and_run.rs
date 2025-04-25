@@ -169,3 +169,13 @@ fn test_comments_aic() {
         "exit code was {actual}, expected {expected}",
     );
 }
+
+#[test]
+fn test_mutable_var_aic() {
+    let actual = compile_and_run_aic("tests/fixtures/mutable_var.aic").code;
+    let expected = 15;
+    assert_eq!(
+        actual, expected,
+        "exit code was {actual}, expected {expected}",
+    );
+}

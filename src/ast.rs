@@ -112,6 +112,16 @@ pub enum Stmt<'a> {
     },
 
     /// A variable declaration (let)
+    LetDecl {
+        /// The variable name
+        name: &'a str,
+        /// The type (optional)
+        r#type: Option<Type>,
+        /// The value (optional)
+        value: Option<Expr<'a>>,
+    },
+
+    /// A mutable variable declaration (var)
     VarDecl {
         /// The variable name
         name: &'a str,
@@ -119,6 +129,14 @@ pub enum Stmt<'a> {
         r#type: Option<Type>,
         /// The value (optional)
         value: Option<Expr<'a>>,
+    },
+
+    /// An assignment statement
+    Assign {
+        /// The variable name
+        name: &'a str,
+        /// The value to assign
+        value: Box<Expr<'a>>,
     },
 
     /// An if statement
