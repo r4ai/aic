@@ -1,0 +1,10 @@
+// This is a line comment
+// Another line comment
+/* Block comment */
+let a: i32 = /* inline block comment */ 10;
+let b: i32 = 20; // Comment at end of line
+
+/* Multi-line
+   block comment
+   with multiple lines */
+a + b // Result with comment

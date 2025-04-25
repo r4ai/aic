@@ -507,4 +507,26 @@ mod tests {
         let errors = result.into_errors();
         assert_yaml_snapshot!(format!("{:?}", errors));
     }
+
+    #[test]
+    fn test_parse_with_comments() {
+        let input = indoc! {"
+            // Line comment
+            fn run() -> i32 {
+                // Another line comment
+                let a: i32 = /* block comment */ 10;
+                let b: i32 = 20; // Comment at end of line
+
+                /* Multi-line
+                   block comment
+                   with multiple lines */
+                a + b // Result with comment
+            }
+        "};
+        let result = parse(input);
+        assert!(has_no_errors(&result));
+
+        let program = result.into_result().unwrap();
+        assert_yaml_snapshot!(program);
+    }
 }

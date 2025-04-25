@@ -91,6 +91,14 @@ pub enum Token<'a> {
 
     #[regex(r"[ \t\f\n]+", logos::skip)]
     Whitespace,
+
+    // Skip line comments (// ...)
+    #[regex(r"//.*", logos::skip)]
+    LineComment,
+
+    // Skip block comments (/* ... */)
+    #[regex(r"/\*[^*]*\*+(?:[^/*][^*]*\*+)*/", logos::skip)]
+    BlockComment,
 }
 
 impl std::fmt::Display for Token<'_> {
@@ -126,6 +134,8 @@ impl std::fmt::Display for Token<'_> {
             Self::RightArrow => write!(f, "->"),
             Self::Assign => write!(f, "="),
             Self::Whitespace => write!(f, "<whitespace>"),
+            Self::LineComment => write!(f, "<line_comment>"),
+            Self::BlockComment => write!(f, "<block_comment>"),
             Self::Error => write!(f, "<e>"),
         }
     }
