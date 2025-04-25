@@ -179,3 +179,13 @@ fn test_mutable_var_aic() {
         "exit code was {actual}, expected {expected}",
     );
 }
+
+#[test]
+fn test_conditional_var_assign() {
+    let actual = compile_and_run_aic("tests/fixtures/conditional_var_assign.aic").code;
+    let expected = 2;
+    assert_eq!(
+        actual, expected,
+        "exit code was {actual}, expected {expected}",
+    );
+}
