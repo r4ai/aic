@@ -3,7 +3,7 @@
 deno = "2.4.4"
 lefthook = "latest"
 mold = "2.37.1"
-rust = "1.87.0"
+rust = "1.89.0"
 
 [hooks]
 postinstall = """\
