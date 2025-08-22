@@ -11,7 +11,7 @@ runs:
   using: "composite"
   steps:
     - name: Install Tools
-      uses: jdx/mise-action@7a111ead46986ccad89a74ad013ba2a7c08c9e67 # v2
+      uses: jdx/mise-action@5ac50f778e26fac95da98d50503682459e86d566 # v3
       with:
         experimental: true
 
